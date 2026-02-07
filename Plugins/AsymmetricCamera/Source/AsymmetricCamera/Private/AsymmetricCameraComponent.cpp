@@ -25,6 +25,12 @@ UAsymmetricCameraComponent::UAsymmetricCameraComponent()
 	ScreenComponent = nullptr;
 	NearClip = 20.0f;
 	FarClip = 0.0f; // 0 = 无限远（UE5 默认）
+	bUseExternalData = false;
+	ExternalEyePosition = FVector::ZeroVector;
+	ExternalScreenBL = FVector(100.0f, -80.0f, -45.0f);
+	ExternalScreenBR = FVector(100.0f,  80.0f, -45.0f);
+	ExternalScreenTL = FVector(100.0f, -80.0f,  45.0f);
+	ExternalScreenTR = FVector(100.0f,  80.0f,  45.0f);
 }
 
 void UAsymmetricCameraComponent::BeginPlay()
@@ -66,6 +72,10 @@ void UAsymmetricCameraComponent::TickComponent(float DeltaTime, ELevelTick TickT
 
 FVector UAsymmetricCameraComponent::GetEyePosition() const
 {
+	if (bUseExternalData)
+	{
+		return ExternalEyePosition;
+	}
 	if (TrackedActor)
 	{
 		return TrackedActor->GetActorLocation();
@@ -78,29 +88,40 @@ bool UAsymmetricCameraComponent::CalculateOffAxisProjection(
 	FRotator& OutViewRotation,
 	FMatrix& OutProjectionMatrix)
 {
-	if (!bUseAsymmetricProjection || !ScreenComponent)
+	if (!bUseAsymmetricProjection)
 	{
 		return false;
 	}
 
-	// ViewRotation = 屏幕组件的世界旋转（nDisplay 约定）
-	OutViewRotation = ScreenComponent->GetComponentRotation();
+	// 拿屏幕四角（世界坐标）
+	FVector WorldBL, WorldBR, WorldTL, WorldTR;
+	GetEffectiveScreenCorners(WorldBL, WorldBR, WorldTL, WorldTR);
 
-	// 拿屏幕四角在 Actor 局部空间的坐标（nDisplay 约定）
+	if (bUseExternalData)
+	{
+		// 外部模式：从四角推导屏幕朝向
+		FVector ScreenRight = (WorldBR - WorldBL).GetSafeNormal();
+		FVector ScreenUp = (WorldTL - WorldBL).GetSafeNormal();
+		FVector ScreenNormal = FVector::CrossProduct(ScreenRight, ScreenUp).GetSafeNormal();
+		OutViewRotation = ScreenNormal.Rotation();
+	}
+	else
+	{
+		if (!ScreenComponent)
+		{
+			return false;
+		}
+		// 组件模式：直接用屏幕组件的旋转
+		OutViewRotation = ScreenComponent->GetComponentRotation();
+	}
+
+	// 转到 Actor 局部空间
 	const AActor* Owner = GetOwner();
 	const FTransform LocalSpace = (Owner ? Owner->GetActorTransform() : FTransform::Identity);
 
-	const FVector2D ScreenSize = ScreenComponent->GetScreenSize();
-	const float HW = ScreenSize.X * 0.5f;
-	const float HH = ScreenSize.Y * 0.5f;
-
-	// 屏幕四角在屏幕组件局部空间（YZ 平面，法线 +X）
-	const FVector ScreenLoc = LocalSpace.InverseTransformPositionNoScale(ScreenComponent->GetComponentLocation());
-	const FQuat ScreenQuat = LocalSpace.InverseTransformRotation(ScreenComponent->GetComponentQuat());
-
-	const FVector PA = ScreenLoc + ScreenQuat.RotateVector(FVector(0.0f, -HW, -HH)); // 左下
-	const FVector PB = ScreenLoc + ScreenQuat.RotateVector(FVector(0.0f,  HW, -HH)); // 右下
-	const FVector PC = ScreenLoc + ScreenQuat.RotateVector(FVector(0.0f, -HW,  HH)); // 左上
+	const FVector PA = LocalSpace.InverseTransformPositionNoScale(WorldBL); // 左下
+	const FVector PB = LocalSpace.InverseTransformPositionNoScale(WorldBR); // 右下
+	const FVector PC = LocalSpace.InverseTransformPositionNoScale(WorldTL); // 左上
 
 	// 眼睛位置转到 Actor 局部空间
 	FVector PE = LocalSpace.InverseTransformPositionNoScale(EyePosition);
@@ -170,16 +191,54 @@ bool UAsymmetricCameraComponent::CalculateOffAxisProjection(
 	return true;
 }
 
+void UAsymmetricCameraComponent::GetEffectiveScreenCorners(
+	FVector& OutBL, FVector& OutBR, FVector& OutTL, FVector& OutTR) const
+{
+	if (bUseExternalData)
+	{
+		OutBL = ExternalScreenBL;
+		OutBR = ExternalScreenBR;
+		OutTL = ExternalScreenTL;
+		OutTR = ExternalScreenTR;
+	}
+	else if (ScreenComponent)
+	{
+		ScreenComponent->GetScreenCornersWorld(OutBL, OutBR, OutTL, OutTR);
+	}
+	else
+	{
+		OutBL = OutBR = OutTL = OutTR = GetComponentLocation();
+	}
+}
+
+void UAsymmetricCameraComponent::SetExternalData(
+	const FVector& EyePos, const FVector& BL, const FVector& BR,
+	const FVector& TL, const FVector& TR)
+{
+	bUseExternalData = true;
+	ExternalEyePosition = EyePos;
+	ExternalScreenBL = BL;
+	ExternalScreenBR = BR;
+	ExternalScreenTL = TL;
+	ExternalScreenTR = TR;
+}
+
 void UAsymmetricCameraComponent::DrawDebugVisualization() const
 {
 	UWorld* World = GetWorld();
-	if (!World || !ScreenComponent)
+	if (!World)
 	{
 		return;
 	}
 
 	FVector PA, PB, PC, PD;
-	ScreenComponent->GetScreenCornersWorld(PA, PB, PC, PD);
+	GetEffectiveScreenCorners(PA, PB, PC, PD);
+
+	// 外部模式下没有 ScreenComponent 也能画
+	if (!bUseExternalData && !ScreenComponent)
+	{
+		return;
+	}
 
 	// 画屏幕边框
 	if (bShowScreenOutline)

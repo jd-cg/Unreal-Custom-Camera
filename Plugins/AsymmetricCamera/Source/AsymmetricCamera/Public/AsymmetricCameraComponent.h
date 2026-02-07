@@ -89,6 +89,40 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera")
 	UAsymmetricScreenComponent* ScreenComponent;
 
+	// ---- 外部数据输入（对接 Max/Maya 等外部工具） ----
+
+	/** 开关：使用外部数据代替 ScreenComponent */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|External")
+	bool bUseExternalData;
+
+	/** 外部眼睛位置（世界坐标） */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|External", meta = (EditCondition = "bUseExternalData"))
+	FVector ExternalEyePosition;
+
+	/** 外部屏幕左下角（世界坐标） */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|External", meta = (EditCondition = "bUseExternalData"))
+	FVector ExternalScreenBL;
+
+	/** 外部屏幕右下角（世界坐标） */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|External", meta = (EditCondition = "bUseExternalData"))
+	FVector ExternalScreenBR;
+
+	/** 外部屏幕左上角（世界坐标） */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|External", meta = (EditCondition = "bUseExternalData"))
+	FVector ExternalScreenTL;
+
+	/** 外部屏幕右上角（世界坐标） */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|External", meta = (EditCondition = "bUseExternalData"))
+	FVector ExternalScreenTR;
+
+	/** 一次性设置全部外部数据 */
+	UFUNCTION(BlueprintCallable, Category = "Asymmetric Camera|External")
+	void SetExternalData(const FVector& EyePos, const FVector& BL, const FVector& BR, const FVector& TL, const FVector& TR);
+
+	/** 获取当前生效的屏幕四角（根据模式自动选择数据源） */
+	UFUNCTION(BlueprintCallable, Category = "Asymmetric Camera")
+	void GetEffectiveScreenCorners(FVector& OutBL, FVector& OutBR, FVector& OutTL, FVector& OutTR) const;
+
 	/**
 	 * 获取眼睛的世界坐标。
 	 * 优先级：TrackedActor > 组件自身位置

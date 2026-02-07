@@ -43,14 +43,13 @@ void FAsymmetricCameraComponentVisualizer::DrawScreenOutline(
 	const UAsymmetricCameraComponent* CameraComponent,
 	FPrimitiveDrawInterface* PDI) const
 {
-	if (!CameraComponent || !CameraComponent->ScreenComponent)
+	if (!CameraComponent || (!CameraComponent->bUseExternalData && !CameraComponent->ScreenComponent))
 	{
 		return;
 	}
 
 	FVector PA, PB, PC, PD;
-	CameraComponent->ScreenComponent->GetScreenCornersWorld(PA, PB, PC, PD);
-
+	CameraComponent->GetEffectiveScreenCorners(PA, PB, PC, PD);
 	const FLinearColor ScreenColor = FLinearColor::Green;
 	const FLinearColor NormalColor = FLinearColor::Red;
 	const float Thickness = 2.0f;
@@ -94,7 +93,7 @@ void FAsymmetricCameraComponentVisualizer::DrawFrustum(
 	const UAsymmetricCameraComponent* CameraComponent,
 	FPrimitiveDrawInterface* PDI) const
 {
-	if (!CameraComponent || !CameraComponent->ScreenComponent)
+	if (!CameraComponent || (!CameraComponent->bUseExternalData && !CameraComponent->ScreenComponent))
 	{
 		return;
 	}
@@ -102,7 +101,7 @@ void FAsymmetricCameraComponentVisualizer::DrawFrustum(
 	FVector EyePosition = CameraComponent->GetEyePosition();
 
 	FVector PA, PB, PC, PD;
-	CameraComponent->ScreenComponent->GetScreenCornersWorld(PA, PB, PC, PD);
+	CameraComponent->GetEffectiveScreenCorners(PA, PB, PC, PD);
 
 	const FLinearColor FrustumColor = FLinearColor::Yellow;
 	const FLinearColor SelectedColor = FLinearColor(1.0f, 0.8f, 0.0f);
@@ -236,7 +235,8 @@ void FAsymmetricCameraComponentVisualizer::DrawVisualizationHUD(
 		Cast<const UAsymmetricCameraComponent>(Component);
 	if (!CameraComponent || !CameraComponent->bShowDebugFrustum
 		|| !CameraComponent->bShowLabels
-		|| !CameraComponent->ScreenComponent || !Canvas || !View)
+		|| (!CameraComponent->bUseExternalData && !CameraComponent->ScreenComponent)
+		|| !Canvas || !View)
 	{
 		return;
 	}
@@ -261,7 +261,7 @@ void FAsymmetricCameraComponentVisualizer::DrawVisualizationHUD(
 	};
 
 	FVector PA, PB, PC, PD;
-	CameraComponent->ScreenComponent->GetScreenCornersWorld(PA, PB, PC, PD);
+	CameraComponent->GetEffectiveScreenCorners(PA, PB, PC, PD);
 	FVector EyePosition = CameraComponent->GetEyePosition();
 
 	// 角标签
@@ -297,11 +297,12 @@ void FAsymmetricCameraComponentVisualizer::DrawVisualizationHUD(
 	// 屏幕信息
 	{
 		FVector ScreenCenterPos = (PA + PB + PC + PD) * 0.25f;
-		FVector2D ScreenSize = CameraComponent->ScreenComponent->GetScreenSize();
+		float ScreenWidth = (PB - PA).Size();
+		float ScreenHeight = (PC - PA).Size();
 		float Distance = (ScreenCenterPos - EyePosition).Size();
 
 		FString InfoText = FString::Printf(TEXT("%.0f x %.0f  D=%.0f"),
-			ScreenSize.X, ScreenSize.Y, Distance);
+			ScreenWidth, ScreenHeight, Distance);
 
 		FVector2D CanvasPos;
 		if (WorldToCanvas(ScreenCenterPos, CanvasPos))
