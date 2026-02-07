@@ -36,6 +36,7 @@ Thumbs.db
 
 # Claude Code
 .claude/
+CLAUDE.md
 
 # Accidental Windows NUL device file
 nul
