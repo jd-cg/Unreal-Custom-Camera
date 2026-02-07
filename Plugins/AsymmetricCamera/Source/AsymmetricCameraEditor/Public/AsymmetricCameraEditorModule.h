@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// AsymmetricCamera 编辑器模块，注册组件可视化器
 
 #pragma once
 
@@ -8,7 +8,7 @@
 class FAsymmetricCameraEditorModule : public IModuleInterface
 {
 public:
-	/** IModuleInterface implementation */
+	// IModuleInterface 接口
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 };

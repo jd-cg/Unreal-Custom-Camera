@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// 场景视图扩展，用来覆盖玩家相机的投影矩阵
 
 #pragma once
 
@@ -8,16 +8,15 @@
 class UAsymmetricCameraComponent;
 
 /**
- * Scene view extension that overrides the player camera's projection matrix
- * with an off-axis asymmetric projection. This is the high-performance path
- * that directly modifies the main camera's projection without any Render Target.
+ * 场景视图扩展，把玩家相机的投影矩阵替换成离轴非对称投影。
+ * 高性能路径：直接改主相机的投影，不需要 Render Target。
  */
 class FAsymmetricViewExtension : public FWorldSceneViewExtension
 {
 public:
 	FAsymmetricViewExtension(const FAutoRegister& AutoRegister, UWorld* InWorld, UAsymmetricCameraComponent* InComponent);
 
-	// ISceneViewExtension interface
+	// ISceneViewExtension 接口
 	virtual void SetupViewFamily(FSceneViewFamily& InViewFamily) override {}
 	virtual void SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView) override {}
 	virtual void BeginRenderViewFamily(FSceneViewFamily& InViewFamily) override {}

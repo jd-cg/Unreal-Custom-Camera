@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// 非对称相机组件，核心投影计算逻辑
 
 #pragma once
 
@@ -10,15 +10,15 @@ class FAsymmetricViewExtension;
 class UAsymmetricScreenComponent;
 
 /**
- * Camera component that provides off-axis/asymmetric frustum projection.
- * Based on Robert Kooima's "Generalized Perspective Projection" algorithm,
- * aligned with nDisplay's projection calculation.
+ * 离轴/非对称视锥投影相机组件
+ * 基于 Robert Kooima 的 "Generalized Perspective Projection" 算法，
+ * 和 nDisplay 的投影计算方式对齐。
  *
- * High-performance path: directly overrides the player camera's projection matrix
- * via ISceneViewExtension. No Render Target or SceneCapture needed.
+ * 高性能路径：通过 ISceneViewExtension 直接覆盖玩家相机的投影矩阵，
+ * 不需要 Render Target 或 SceneCapture。
  *
- * Requires a sibling UAsymmetricScreenComponent to define the projection screen.
- * Eye position = this component's world location (or TrackedActor if set).
+ * 需要一个同级的 UAsymmetricScreenComponent 来定义投影屏幕。
+ * 眼睛位置 = 组件的世界坐标（设了 TrackedActor 就用它的位置）。
  */
 UCLASS(ClassGroup = Camera, meta = (BlueprintSpawnableComponent), hideCategories = (Mobility))
 class ASYMMETRICCAMERA_API UAsymmetricCameraComponent : public USceneComponent
@@ -28,80 +28,80 @@ class ASYMMETRICCAMERA_API UAsymmetricCameraComponent : public USceneComponent
 public:
 	UAsymmetricCameraComponent();
 
-	/** Enable/Disable off-axis projection */
+	/** 开关：是否启用离轴投影 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera")
 	bool bUseAsymmetricProjection;
 
-	/** Near clipping plane distance */
+	/** 近裁切面距离 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera", meta = (ClampMin = "0.01"))
 	float NearClip;
 
-	/** Far clipping plane distance (0 = infinite, matching UE5 default) */
+	/** 远裁切面距离（0 = 无限远，和 UE5 默认一样） */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera", meta = (ClampMin = "0.0"))
 	float FarClip;
 
-	/** Eye separation for stereoscopic rendering (0 for mono) */
+	/** 双眼间距，用于立体渲染（0 = 单眼） */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|Stereo", meta = (ClampMin = "0.0"))
 	float EyeSeparation;
 
-	/** Which eye to render (left = -1, center = 0, right = 1) */
+	/** 渲染哪只眼（左 = -1，中 = 0，右 = 1） */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|Stereo", meta = (ClampMin = "-1.0", ClampMax = "1.0"))
 	float EyeOffset;
 
-	/** Automatically adjust viewport to match screen aspect ratio (prevents stretching).
-	 *  Disable for CAVE/multi-display setups where screen aspect ratio matches the physical display. */
+	/** 自动调整视口比例匹配屏幕宽高比（防止画面拉伸）。
+	 *  CAVE/多屏系统里屏幕比例本身就对的话可以关掉。 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera")
 	bool bMatchViewportAspectRatio;
 
-	/** Master switch: debug visualization in editor viewport */
+	/** 总开关：编辑器视口里显示调试可视化 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|Debug")
 	bool bShowDebugFrustum;
 
-	/** Show screen wireframe outline, diagonals, and normal arrow */
+	/** 显示屏幕边框线、对角线和法线箭头 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|Debug", meta = (EditCondition = "bShowDebugFrustum"))
 	bool bShowScreenOutline;
 
-	/** Show frustum lines from eye to screen corners */
+	/** 显示从眼睛到屏幕四角的视锥线 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|Debug", meta = (EditCondition = "bShowDebugFrustum"))
 	bool bShowFrustumLines;
 
-	/** Show eye position sphere handle */
+	/** 显示眼睛位置的球形手柄 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|Debug", meta = (EditCondition = "bShowDebugFrustum"))
 	bool bShowEyeHandle;
 
-	/** Show near clipping plane visualization */
+	/** 显示近裁切面可视化 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|Debug", meta = (EditCondition = "bShowDebugFrustum"))
 	bool bShowNearPlane;
 
-	/** Show corner labels (BL/BR/TL/TR), eye label, and screen info text */
+	/** 显示角标签（BL/BR/TL/TR）、眼睛标签和屏幕信息文字 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|Debug", meta = (EditCondition = "bShowDebugFrustum"))
 	bool bShowLabels;
 
-	/** Show debug visualization during gameplay (DrawDebugLine) */
+	/** 运行时也显示调试可视化（DrawDebugLine） */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|Debug")
 	bool bShowDebugInGame;
 
-	/** Optional: Actor to track for eye position. If not set, uses this component's world location. */
+	/** 可选：跟踪的 Actor，用它的位置作为眼睛位置。不设就用组件自身的世界坐标。 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|Tracking")
 	AActor* TrackedActor;
 
-	/** Reference to the screen component that defines the projection plane */
+	/** 关联的屏幕组件，定义投影平面 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera")
 	UAsymmetricScreenComponent* ScreenComponent;
 
 	/**
-	 * Get the eye position in world space.
-	 * Priority: TrackedActor > this component's world location
+	 * 获取眼睛的世界坐标。
+	 * 优先级：TrackedActor > 组件自身位置
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Asymmetric Camera")
 	FVector GetEyePosition() const;
 
 	/**
-	 * Calculate the off-axis projection.
-	 * @param EyePosition - Eye position in world space
-	 * @param OutViewRotation - Screen orientation as FRotator (for ViewRotationMatrix construction)
-	 * @param OutProjectionMatrix - The resulting projection matrix (UE5 reversed-Z)
-	 * @return true if successful
+	 * 计算离轴投影。
+	 * @param EyePosition - 眼睛世界坐标
+	 * @param OutViewRotation - 屏幕朝向（用于构建 ViewRotationMatrix）
+	 * @param OutProjectionMatrix - 输出的投影矩阵（UE5 reversed-Z 格式）
+	 * @return 计算成功返回 true
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Asymmetric Camera")
 	bool CalculateOffAxisProjection(const FVector& EyePosition, FRotator& OutViewRotation, FMatrix& OutProjectionMatrix);
@@ -117,9 +117,9 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
-	/** Draw debug visualization during gameplay */
+	/** 运行时画调试线 */
 	void DrawDebugVisualization() const;
 
-	/** Scene view extension for overriding player camera projection */
+	/** 场景视图扩展，用来覆盖玩家相机投影 */
 	TSharedPtr<FAsymmetricViewExtension, ESPMode::ThreadSafe> ViewExtension;
 };

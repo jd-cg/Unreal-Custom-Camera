@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// 投影屏幕组件，定义投影平面的位置、朝向和大小
 
 #pragma once
 
@@ -7,12 +7,12 @@
 #include "AsymmetricScreenComponent.generated.h"
 
 /**
- * Screen component for asymmetric/off-axis projection.
- * Represents a physical projection screen defined by position, rotation, and size.
- * Visualization is handled by the editor component visualizer (wireframe outline).
+ * 投影屏幕组件，用于非对称/离轴投影。
+ * 通过位置、旋转和尺寸来定义一块物理投影屏幕。
+ * 编辑器里的线框可视化由 ComponentVisualizer 负责。
  *
- * The screen plane lies in the component's local YZ plane with normal along +X,
- * matching nDisplay's convention.
+ * 屏幕平面在组件局部空间的 YZ 平面上，法线朝 +X，
+ * 和 nDisplay 的约定一致。
  */
 UCLASS(ClassGroup = Camera, meta = (BlueprintSpawnableComponent))
 class ASYMMETRICCAMERA_API UAsymmetricScreenComponent : public USceneComponent
@@ -22,32 +22,32 @@ class ASYMMETRICCAMERA_API UAsymmetricScreenComponent : public USceneComponent
 public:
 	UAsymmetricScreenComponent();
 
-	/** Screen width in world units */
+	/** 屏幕宽度（世界单位） */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|Screen", meta = (ClampMin = "1.0"))
 	float ScreenWidth;
 
-	/** Screen height in world units */
+	/** 屏幕高度（世界单位） */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|Screen", meta = (ClampMin = "1.0"))
 	float ScreenHeight;
 
-	/** Get the screen size as (Width, Height). */
+	/** 获取屏幕尺寸，返回 (宽, 高) */
 	UFUNCTION(BlueprintCallable, Category = "Asymmetric Camera|Screen")
 	FVector2D GetScreenSize() const;
 
-	/** Set the screen size in world units. */
+	/** 设置屏幕尺寸（世界单位） */
 	UFUNCTION(BlueprintCallable, Category = "Asymmetric Camera|Screen")
 	void SetScreenSize(const FVector2D& NewSize);
 
 	/**
-	 * Get the four screen corners in world space.
-	 * Order: BottomLeft, BottomRight, TopLeft, TopRight.
+	 * 获取屏幕四角的世界坐标。
+	 * 顺序：左下、右下、左上、右上。
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Asymmetric Camera|Screen")
 	void GetScreenCornersWorld(FVector& OutBottomLeft, FVector& OutBottomRight, FVector& OutTopLeft, FVector& OutTopRight) const;
 
 	/**
-	 * Get the four screen corners in the owning actor's local space.
-	 * Order: BottomLeft, BottomRight, TopLeft, TopRight.
+	 * 获取屏幕四角在所属 Actor 局部空间的坐标。
+	 * 顺序：左下、右下、左上、右上。
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Asymmetric Camera|Screen")
 	void GetScreenCornersLocal(FVector& OutBottomLeft, FVector& OutBottomRight, FVector& OutTopLeft, FVector& OutTopRight) const;

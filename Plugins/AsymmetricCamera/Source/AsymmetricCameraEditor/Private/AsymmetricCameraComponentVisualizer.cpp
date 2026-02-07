@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// 编辑器组件可视化器实现
 
 #include "AsymmetricCameraComponentVisualizer.h"
 #include "AsymmetricCameraComponent.h"
@@ -58,18 +58,18 @@ void FAsymmetricCameraComponentVisualizer::DrawScreenOutline(
 
 	PDI->SetHitProxy(nullptr);
 
-	// Screen outline
+	// 屏幕边框
 	PDI->DrawLine(PA, PB, ScreenColor, DepthPriority, Thickness);
 	PDI->DrawLine(PB, PD, ScreenColor, DepthPriority, Thickness);
 	PDI->DrawLine(PD, PC, ScreenColor, DepthPriority, Thickness);
 	PDI->DrawLine(PC, PA, ScreenColor, DepthPriority, Thickness);
 
-	// Diagonals
+	// 对角线
 	const FLinearColor DiagonalColor = FLinearColor(0.0f, 0.5f, 1.0f);
 	PDI->DrawLine(PA, PD, DiagonalColor, DepthPriority, Thickness * 0.5f);
 	PDI->DrawLine(PB, PC, DiagonalColor, DepthPriority, Thickness * 0.5f);
 
-	// Normal arrow from screen center
+	// 从屏幕中心画法线箭头
 	FVector ScreenCenterPos = (PA + PB + PC + PD) * 0.25f;
 	FVector Normal = FVector::CrossProduct(PB - PA, PC - PA).GetSafeNormal();
 	FVector NormalEnd = ScreenCenterPos + Normal * 50.0f;
@@ -109,7 +109,7 @@ void FAsymmetricCameraComponentVisualizer::DrawFrustum(
 	const float FrustumThickness = 1.5f;
 	const uint8 DepthPriority = SDPG_World;
 
-	// Frustum lines from eye to screen corners
+	// 从眼睛到屏幕四角的视锥线
 	if (CameraComponent->bShowFrustumLines)
 	{
 		PDI->DrawLine(EyePosition, PA, FrustumColor, DepthPriority, FrustumThickness);
@@ -118,7 +118,7 @@ void FAsymmetricCameraComponentVisualizer::DrawFrustum(
 		PDI->DrawLine(EyePosition, PD, FrustumColor, DepthPriority, FrustumThickness);
 	}
 
-	// Eye position handle with hit proxy
+	// 眼睛位置手柄（带点击代理）
 	if (CameraComponent->bShowEyeHandle)
 	{
 		PDI->SetHitProxy(new HEyePositionProxy(CameraComponent));
@@ -133,7 +133,7 @@ void FAsymmetricCameraComponentVisualizer::DrawFrustum(
 		PDI->SetHitProxy(nullptr);
 	}
 
-	// Near plane visualization
+	// 近裁切面可视化
 	if (CameraComponent->bShowNearPlane)
 	{
 		FVector ScreenCenterPos = (PA + PB + PC + PD) * 0.25f;
@@ -219,7 +219,7 @@ bool FAsymmetricCameraComponentVisualizer::HandleInputDelta(
 		return true;
 	}
 
-	// Move the camera component (eye position) by adjusting its world location
+	// 拖动眼睛位置（移动相机组件）
 	const FScopedTransaction Transaction(FText::FromString(TEXT("Move Eye Position")));
 	SelectedComponent->Modify();
 
@@ -264,7 +264,7 @@ void FAsymmetricCameraComponentVisualizer::DrawVisualizationHUD(
 	CameraComponent->ScreenComponent->GetScreenCornersWorld(PA, PB, PC, PD);
 	FVector EyePosition = CameraComponent->GetEyePosition();
 
-	// Corner labels
+	// 角标签
 	const TCHAR* CornerLabels[4] = { TEXT("BL"), TEXT("BR"), TEXT("TL"), TEXT("TR") };
 	const FVector CornerPositions[4] = { PA, PB, PC, PD };
 
@@ -281,7 +281,7 @@ void FAsymmetricCameraComponentVisualizer::DrawVisualizationHUD(
 		}
 	}
 
-	// Eye label
+	// 眼睛标签
 	{
 		FVector2D CanvasPos;
 		if (WorldToCanvas(EyePosition, CanvasPos))
@@ -294,7 +294,7 @@ void FAsymmetricCameraComponentVisualizer::DrawVisualizationHUD(
 		}
 	}
 
-	// Screen info
+	// 屏幕信息
 	{
 		FVector ScreenCenterPos = (PA + PB + PC + PD) * 0.25f;
 		FVector2D ScreenSize = CameraComponent->ScreenComponent->GetScreenSize();

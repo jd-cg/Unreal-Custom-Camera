@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// 非对称相机 Actor，放到关卡里就能用
 
 #pragma once
 
@@ -10,12 +10,12 @@ class UAsymmetricCameraComponent;
 class UAsymmetricScreenComponent;
 
 /**
- * Actor that provides asymmetric/off-axis camera projection.
- * Hierarchy: Root (SceneComponent) -> Screen (AsymmetricScreenComponent) + Camera (AsymmetricCameraComponent)
+ * 非对称/离轴投影相机 Actor
+ * 组件层级: Root (SceneComponent) -> Screen (屏幕组件) + Camera (相机组件)
  *
- * - Root: origin of the system, move/rotate to reposition everything
- * - Screen: defines the physical projection plane (visible mesh in editor)
- * - Camera: eye position for projection calculation (or uses TrackedActor)
+ * - Root: 整个系统的原点，移动/旋转它来调整整体位置
+ * - Screen: 定义物理投影平面（编辑器里可见）
+ * - Camera: 眼睛位置，用于投影计算（也可以用 TrackedActor 代替）
  */
 UCLASS()
 class ASYMMETRICCAMERA_API AAsymmetricCameraActor : public AActor
@@ -27,15 +27,15 @@ public:
 
 	virtual bool ShouldTickIfViewportsOnly() const override { return true; }
 
-	/** Root scene component */
+	/** 根组件 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	USceneComponent* RootComp;
 
-	/** Screen component defining the projection plane */
+	/** 屏幕组件，定义投影平面 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UAsymmetricScreenComponent* ScreenComponent;
 
-	/** Asymmetric camera component for projection calculation */
+	/** 非对称相机组件，负责投影计算 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UAsymmetricCameraComponent* AsymmetricCamera;
 };

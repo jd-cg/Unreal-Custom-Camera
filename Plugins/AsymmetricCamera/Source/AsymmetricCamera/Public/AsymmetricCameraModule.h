@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// AsymmetricCamera 运行时模块
 
 #pragma once
 
@@ -8,8 +8,6 @@
 class FAsymmetricCameraModule : public IModuleInterface
 {
 public:
-
-	/** IModuleInterface implementation */
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 };

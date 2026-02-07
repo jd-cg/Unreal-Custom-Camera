@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// 编辑器组件可视化器，在视口里画视锥和眼睛手柄
 
 #pragma once
 
@@ -7,7 +7,7 @@
 
 class UAsymmetricCameraComponent;
 
-/** Hit proxy for the eye position handle */
+/** 眼睛位置的点击代理 */
 struct HEyePositionProxy : public HComponentVisProxy
 {
 	DECLARE_HIT_PROXY();
@@ -19,9 +19,9 @@ struct HEyePositionProxy : public HComponentVisProxy
 };
 
 /**
- * Editor visualizer for AsymmetricCameraComponent.
- * Draws the projection frustum and eye position handle.
- * Screen visualization is handled by the UAsymmetricScreenComponent mesh.
+ * AsymmetricCameraComponent 的编辑器可视化器。
+ * 画投影视锥和眼睛位置手柄。
+ * 屏幕的可视化由 UAsymmetricScreenComponent 的 mesh 负责。
  */
 class FAsymmetricCameraComponentVisualizer : public FComponentVisualizer
 {
@@ -29,7 +29,7 @@ public:
 	FAsymmetricCameraComponentVisualizer();
 	virtual ~FAsymmetricCameraComponentVisualizer();
 
-	// FComponentVisualizer interface
+	// FComponentVisualizer 接口
 	virtual void DrawVisualization(const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI) override;
 	virtual bool VisProxyHandleClick(FEditorViewportClient* InViewportClient, HComponentVisProxy* VisProxy, const FViewportClick& Click) override;
 	virtual void EndEditing() override;
@@ -41,9 +41,9 @@ private:
 	void DrawFrustum(const UAsymmetricCameraComponent* CameraComponent, FPrimitiveDrawInterface* PDI) const;
 	void DrawScreenOutline(const UAsymmetricCameraComponent* CameraComponent, FPrimitiveDrawInterface* PDI) const;
 
-	/** Whether the eye position handle is selected */
+	/** 眼睛手柄是否被选中 */
 	bool bEyeSelected;
 
-	/** The component being edited */
+	/** 正在编辑的组件 */
 	TWeakObjectPtr<UAsymmetricCameraComponent> SelectedComponent;
 };

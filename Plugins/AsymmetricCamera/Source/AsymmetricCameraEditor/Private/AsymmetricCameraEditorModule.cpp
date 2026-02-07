@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// AsymmetricCamera 编辑器模块实现
 
 #include "AsymmetricCameraEditorModule.h"
 #include "AsymmetricCameraComponentVisualizer.h"
@@ -10,7 +10,7 @@
 
 void FAsymmetricCameraEditorModule::StartupModule()
 {
-	// Register component visualizer
+	// 注册组件可视化器
 	if (GUnrealEd)
 	{
 		TSharedPtr<FAsymmetricCameraComponentVisualizer> Visualizer = MakeShareable(new FAsymmetricCameraComponentVisualizer());
@@ -25,7 +25,7 @@ void FAsymmetricCameraEditorModule::StartupModule()
 
 void FAsymmetricCameraEditorModule::ShutdownModule()
 {
-	// Unregister component visualizer
+	// 反注册组件可视化器
 	if (GUnrealEd)
 	{
 		GUnrealEd->UnregisterComponentVisualizer(UAsymmetricCameraComponent::StaticClass()->GetFName());

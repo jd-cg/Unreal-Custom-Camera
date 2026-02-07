@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// AsymmetricCamera 运行时模块实现
 
 #include "AsymmetricCameraModule.h"
 
@@ -6,13 +6,12 @@
 
 void FAsymmetricCameraModule::StartupModule()
 {
-	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
+	// 模块加载时执行，具体时机由 .uplugin 配置决定
 }
 
 void FAsymmetricCameraModule::ShutdownModule()
 {
-	// This function may be called during shutdown to clean up your module.  For modules that support dynamic reloading,
-	// we call this function before unloading the module.
+	// 模块卸载时的清理工作
 }
 
 #undef LOCTEXT_NAMESPACE

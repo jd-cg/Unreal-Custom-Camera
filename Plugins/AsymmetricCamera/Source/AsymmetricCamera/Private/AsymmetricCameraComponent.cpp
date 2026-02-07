@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// 非对称相机组件实现
 
 #include "AsymmetricCameraComponent.h"
 #include "AsymmetricScreenComponent.h"
@@ -24,14 +24,14 @@ UAsymmetricCameraComponent::UAsymmetricCameraComponent()
 	TrackedActor = nullptr;
 	ScreenComponent = nullptr;
 	NearClip = 20.0f;
-	FarClip = 0.0f; // 0 = infinite far plane (UE5 default)
+	FarClip = 0.0f; // 0 = 无限远（UE5 默认）
 }
 
 void UAsymmetricCameraComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Auto-find screen component if not set
+	// 没设屏幕组件的话自动找一个
 	if (!ScreenComponent)
 	{
 		AActor* Owner = GetOwner();
@@ -41,7 +41,7 @@ void UAsymmetricCameraComponent::BeginPlay()
 		}
 	}
 
-	// Register view extension to override the player camera projection
+	// 注册视图扩展，用来覆盖玩家相机投影
 	if (bUseAsymmetricProjection)
 	{
 		ViewExtension = FSceneViewExtensions::NewExtension<FAsymmetricViewExtension>(GetWorld(), this);
@@ -83,10 +83,10 @@ bool UAsymmetricCameraComponent::CalculateOffAxisProjection(
 		return false;
 	}
 
-	// ViewRotation = screen component's world rotation (nDisplay convention)
+	// ViewRotation = 屏幕组件的世界旋转（nDisplay 约定）
 	OutViewRotation = ScreenComponent->GetComponentRotation();
 
-	// Get screen corners in actor local space (nDisplay convention)
+	// 拿屏幕四角在 Actor 局部空间的坐标（nDisplay 约定）
 	const AActor* Owner = GetOwner();
 	const FTransform LocalSpace = (Owner ? Owner->GetActorTransform() : FTransform::Identity);
 
@@ -94,41 +94,41 @@ bool UAsymmetricCameraComponent::CalculateOffAxisProjection(
 	const float HW = ScreenSize.X * 0.5f;
 	const float HH = ScreenSize.Y * 0.5f;
 
-	// Screen corners in screen component local space (YZ plane, normal +X)
+	// 屏幕四角在屏幕组件局部空间（YZ 平面，法线 +X）
 	const FVector ScreenLoc = LocalSpace.InverseTransformPositionNoScale(ScreenComponent->GetComponentLocation());
 	const FQuat ScreenQuat = LocalSpace.InverseTransformRotation(ScreenComponent->GetComponentQuat());
 
-	const FVector PA = ScreenLoc + ScreenQuat.RotateVector(FVector(0.0f, -HW, -HH)); // Left-Bottom
-	const FVector PB = ScreenLoc + ScreenQuat.RotateVector(FVector(0.0f,  HW, -HH)); // Right-Bottom
-	const FVector PC = ScreenLoc + ScreenQuat.RotateVector(FVector(0.0f, -HW,  HH)); // Left-Top
+	const FVector PA = ScreenLoc + ScreenQuat.RotateVector(FVector(0.0f, -HW, -HH)); // 左下
+	const FVector PB = ScreenLoc + ScreenQuat.RotateVector(FVector(0.0f,  HW, -HH)); // 右下
+	const FVector PC = ScreenLoc + ScreenQuat.RotateVector(FVector(0.0f, -HW,  HH)); // 左上
 
-	// Eye position in actor local space
+	// 眼睛位置转到 Actor 局部空间
 	FVector PE = LocalSpace.InverseTransformPositionNoScale(EyePosition);
 
-	// Apply stereo eye offset along screen right vector
+	// 立体偏移：沿屏幕右方向偏移
 	if (FMath::Abs(EyeSeparation) > SMALL_NUMBER)
 	{
 		FVector VR = (PB - PA).GetSafeNormal();
 		PE += VR * (EyeOffset * EyeSeparation * 0.5f);
 	}
 
-	// Compute orthonormal basis for the screen
-	FVector VR = (PB - PA).GetSafeNormal(); // Right
-	FVector VU = (PC - PA).GetSafeNormal(); // Up
-	// Screen normal: negate cross product (nDisplay convention, left-handed)
+	// 屏幕的正交基
+	FVector VR = (PB - PA).GetSafeNormal(); // 右
+	FVector VU = (PC - PA).GetSafeNormal(); // 上
+	// 屏幕法线：叉积取反（nDisplay 约定，左手系）
 	FVector VN = -FVector::CrossProduct(VR, VU).GetSafeNormal();
 
-	// Vectors from eye to screen corners
+	// 眼睛到屏幕三个角的向量
 	const FVector VA = PA - PE;
 	const FVector VB = PB - PE;
 	const FVector VC = PC - PE;
 
-	// Distance from eye to screen plane
+	// 眼睛到屏幕平面的距离
 	const float Distance = -FVector::DotProduct(VA, VN);
 	static const float MinScreenDistance = 10.0f;
 	const float SafeDistance = (FMath::Abs(Distance) < MinScreenDistance) ? MinScreenDistance : Distance;
 
-	// Project screen extents onto near plane
+	// 把屏幕范围投影到近裁切面上
 	const float Near = NearClip;
 	const float Far = FarClip;
 	const float NearOverDist = Near / SafeDistance;
@@ -138,28 +138,28 @@ bool UAsymmetricCameraComponent::CalculateOffAxisProjection(
 	const float Bottom = FVector::DotProduct(VU, VA) * NearOverDist;
 	const float Top    = FVector::DotProduct(VU, VC) * NearOverDist;
 
-	// Build projection matrix using nDisplay's exact MakeProjectionMatrix formula:
-	// 1) Standard LHS off-center projection
-	// 2) Multiply by flipZ to get UE5 reversed-Z
+	// 用 nDisplay 的 MakeProjectionMatrix 公式构建投影矩阵：
+	// 1) 标准左手系偏心投影
+	// 2) 乘以 flipZ 得到 UE5 reversed-Z
 	const float mx = 2.0f * Near / (Right - Left);
 	const float my = 2.0f * Near / (Top - Bottom);
 	const float ma = -(Right + Left) / (Right - Left);
 	const float mb = -(Top + Bottom) / (Top - Bottom);
 
-	// Support unlimited far plane (Far <= 0 or Far == Near)
+	// 支持无限远平面（Far <= 0 或 Far == Near）
 	const bool bInfiniteFar = (Far <= 0.0f) || FMath::IsNearlyEqual(Near, Far);
 	const float mc = bInfiniteFar ? (1.0f - SMALL_NUMBER) : (Far / (Far - Near));
 	const float md = bInfiniteFar ? (-Near * (1.0f - SMALL_NUMBER)) : (-(Far * Near) / (Far - Near));
 	const float me = 1.0f;
 
-	// Standard LHS projection matrix
+	// 标准左手系投影矩阵
 	const FMatrix StandardLHS(
 		FPlane(mx, 0.0f, 0.0f, 0.0f),
 		FPlane(0.0f, my, 0.0f, 0.0f),
 		FPlane(ma, mb, mc, me),
 		FPlane(0.0f, 0.0f, md, 0.0f));
 
-	// flipZ: invert Z-axis for UE5's reversed-Z convention
+	// flipZ：反转 Z 轴，转成 UE5 的 reversed-Z
 	static const FMatrix FlipZ(
 		FPlane(1.0f, 0.0f, 0.0f, 0.0f),
 		FPlane(0.0f, 1.0f, 0.0f, 0.0f),
@@ -181,7 +181,7 @@ void UAsymmetricCameraComponent::DrawDebugVisualization() const
 	FVector PA, PB, PC, PD;
 	ScreenComponent->GetScreenCornersWorld(PA, PB, PC, PD);
 
-	// Draw screen outline
+	// 画屏幕边框
 	if (bShowScreenOutline)
 	{
 		DrawDebugLine(World, PA, PB, FColor::Green, false, -1.0f, 0, 2.0f);
@@ -189,7 +189,7 @@ void UAsymmetricCameraComponent::DrawDebugVisualization() const
 		DrawDebugLine(World, PD, PC, FColor::Green, false, -1.0f, 0, 2.0f);
 		DrawDebugLine(World, PC, PA, FColor::Green, false, -1.0f, 0, 2.0f);
 
-		// Normal arrow from screen center
+		// 从屏幕中心画法线箭头
 		FVector ScreenCenterWorld = (PA + PB + PC + PD) * 0.25f;
 		FVector Normal = FVector::CrossProduct(PB - PA, PC - PA).GetSafeNormal();
 		DrawDebugLine(World, ScreenCenterWorld, ScreenCenterWorld + Normal * 50.0f, FColor::Red, false, -1.0f, 0, 3.0f);
@@ -197,13 +197,13 @@ void UAsymmetricCameraComponent::DrawDebugVisualization() const
 
 	FVector EyePos = GetEyePosition();
 
-	// Draw eye position
+	// 画眼睛位置
 	if (bShowEyeHandle)
 	{
 		DrawDebugSphere(World, EyePos, 10.0f, 8, FColor::Yellow, false, -1.0f, 0, 2.0f);
 	}
 
-	// Draw frustum lines from eye to corners
+	// 画从眼睛到屏幕四角的视锥线
 	if (bShowFrustumLines)
 	{
 		DrawDebugLine(World, EyePos, PA, FColor::Yellow, false, -1.0f, 0, 1.0f);
@@ -212,7 +212,7 @@ void UAsymmetricCameraComponent::DrawDebugVisualization() const
 		DrawDebugLine(World, EyePos, PD, FColor::Yellow, false, -1.0f, 0, 1.0f);
 	}
 
-	// Draw near plane
+	// 画近裁切面
 	if (bShowNearPlane)
 	{
 		FVector ScreenCenterPos = (PA + PB + PC + PD) * 0.25f;

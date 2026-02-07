@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// 场景视图扩展实现，在这里覆盖投影矩阵
 
 #include "AsymmetricViewExtension.h"
 #include "AsymmetricCameraComponent.h"
@@ -36,9 +36,8 @@ void FAsymmetricViewExtension::SetupViewProjectionMatrix(FSceneViewProjectionDat
 		return;
 	}
 
-	// Build ViewRotationMatrix using UE5's standard formula:
+	// 用屏幕旋转构建 ViewRotationMatrix，和 LocalPlayer.cpp:1244 一样：
 	//   FInverseRotationMatrix(ViewRotation) * SwizzleMatrix
-	// This matches LocalPlayer.cpp:1244 exactly.
 	static const FMatrix SwizzleMatrix(
 		FPlane(0, 0, 1, 0),
 		FPlane(1, 0, 0, 0),
@@ -47,7 +46,7 @@ void FAsymmetricViewExtension::SetupViewProjectionMatrix(FSceneViewProjectionDat
 	);
 	const FMatrix ViewRotationMatrix = FInverseRotationMatrix(ViewRotation) * SwizzleMatrix;
 
-	// Debug log (first 3 frames only)
+	// 调试日志（只打前 3 帧）
 	if (GAsymmetricDebugLogFrames < 3)
 	{
 		GAsymmetricDebugLogFrames++;
@@ -66,7 +65,7 @@ void FAsymmetricViewExtension::SetupViewProjectionMatrix(FSceneViewProjectionDat
 	InOutProjectionData.ViewRotationMatrix = ViewRotationMatrix;
 	InOutProjectionData.ProjectionMatrix = ProjectionMatrix;
 
-	// Constrain viewport to match screen aspect ratio (prevents stretching)
+	// 约束视口比例匹配屏幕宽高比（防止拉伸）
 	if (CameraComponent->bMatchViewportAspectRatio && CameraComponent->ScreenComponent)
 	{
 		const FVector2D ScreenSize = CameraComponent->ScreenComponent->GetScreenSize();
@@ -99,14 +98,14 @@ void FAsymmetricViewExtension::SetupViewProjectionMatrix(FSceneViewProjectionDat
 
 		if (ScreenAspect < ViewportAspect)
 		{
-			// Pillarbox (black bars on sides)
+			// 左右黑边（Pillarbox）
 			NewH = ViewH;
 			NewW = FMath::RoundToInt(static_cast<float>(ViewH) * ScreenAspect);
 			OffX += (ViewW - NewW) / 2;
 		}
 		else
 		{
-			// Letterbox (black bars top/bottom)
+			// 上下黑边（Letterbox）
 			NewW = ViewW;
 			NewH = FMath::RoundToInt(static_cast<float>(ViewW) / ScreenAspect);
 			OffY += (ViewH - NewH) / 2;

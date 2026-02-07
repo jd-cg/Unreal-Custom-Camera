@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// 非对称相机 Actor 实现
 
 #include "AsymmetricCameraActor.h"
 #include "AsymmetricCameraComponent.h"
@@ -8,15 +8,15 @@ AAsymmetricCameraActor::AAsymmetricCameraActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
-	// Root component — origin of the entire system
+	// 根组件，整个系统的原点
 	RootComp = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
 	RootComponent = RootComp;
 
-	// Screen component — defines the physical projection plane
+	// 屏幕组件，定义投影平面
 	ScreenComponent = CreateDefaultSubobject<UAsymmetricScreenComponent>(TEXT("Screen"));
 	ScreenComponent->SetupAttachment(RootComp);
 
-	// Camera component — eye position, projection calculation
+	// 相机组件，眼睛位置 + 投影计算
 	AsymmetricCamera = CreateDefaultSubobject<UAsymmetricCameraComponent>(TEXT("AsymmetricCamera"));
 	AsymmetricCamera->SetupAttachment(RootComp);
 	AsymmetricCamera->ScreenComponent = ScreenComponent;
