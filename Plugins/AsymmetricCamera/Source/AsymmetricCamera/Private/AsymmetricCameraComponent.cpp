@@ -26,10 +26,15 @@ UAsymmetricCameraComponent::UAsymmetricCameraComponent()
 	NearClip = 20.0f;
 	FarClip = 0.0f; // 0 = 无限远（UE5 默认）
 	bUseExternalData = false;
+	ExternalEyeActor = nullptr;
 	ExternalEyePosition = FVector::ZeroVector;
+	ExternalScreenBLActor = nullptr;
 	ExternalScreenBL = FVector(100.0f, -80.0f, -45.0f);
+	ExternalScreenBRActor = nullptr;
 	ExternalScreenBR = FVector(100.0f,  80.0f, -45.0f);
+	ExternalScreenTLActor = nullptr;
 	ExternalScreenTL = FVector(100.0f, -80.0f,  45.0f);
+	ExternalScreenTRActor = nullptr;
 	ExternalScreenTR = FVector(100.0f,  80.0f,  45.0f);
 }
 
@@ -74,7 +79,7 @@ FVector UAsymmetricCameraComponent::GetEyePosition() const
 {
 	if (bUseExternalData)
 	{
-		return ExternalEyePosition;
+		return ExternalEyeActor ? ExternalEyeActor->GetActorLocation() : ExternalEyePosition;
 	}
 	if (TrackedActor)
 	{
@@ -196,10 +201,10 @@ void UAsymmetricCameraComponent::GetEffectiveScreenCorners(
 {
 	if (bUseExternalData)
 	{
-		OutBL = ExternalScreenBL;
-		OutBR = ExternalScreenBR;
-		OutTL = ExternalScreenTL;
-		OutTR = ExternalScreenTR;
+		OutBL = ExternalScreenBLActor ? ExternalScreenBLActor->GetActorLocation() : ExternalScreenBL;
+		OutBR = ExternalScreenBRActor ? ExternalScreenBRActor->GetActorLocation() : ExternalScreenBR;
+		OutTL = ExternalScreenTLActor ? ExternalScreenTLActor->GetActorLocation() : ExternalScreenTL;
+		OutTR = ExternalScreenTRActor ? ExternalScreenTRActor->GetActorLocation() : ExternalScreenTR;
 	}
 	else if (ScreenComponent)
 	{

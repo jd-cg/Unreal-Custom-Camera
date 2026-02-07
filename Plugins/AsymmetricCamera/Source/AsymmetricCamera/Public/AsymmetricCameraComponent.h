@@ -95,21 +95,41 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|External")
 	bool bUseExternalData;
 
-	/** 外部眼睛位置（世界坐标） */
+	/** 外部眼睛位置 Actor（设了就用它的位置，否则用 ExternalEyePosition） */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|External", meta = (EditCondition = "bUseExternalData"))
+	AActor* ExternalEyeActor;
+
+	/** 外部眼睛位置（世界坐标，ExternalEyeActor 没设时生效） */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|External", meta = (EditCondition = "bUseExternalData"))
 	FVector ExternalEyePosition;
+
+	/** 外部屏幕左下角 Actor（设了就用它的位置，否则用 ExternalScreenBL） */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|External", meta = (EditCondition = "bUseExternalData"))
+	AActor* ExternalScreenBLActor;
 
 	/** 外部屏幕左下角（世界坐标） */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|External", meta = (EditCondition = "bUseExternalData"))
 	FVector ExternalScreenBL;
 
+	/** 外部屏幕右下角 Actor */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|External", meta = (EditCondition = "bUseExternalData"))
+	AActor* ExternalScreenBRActor;
+
 	/** 外部屏幕右下角（世界坐标） */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|External", meta = (EditCondition = "bUseExternalData"))
 	FVector ExternalScreenBR;
 
+	/** 外部屏幕左上角 Actor */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|External", meta = (EditCondition = "bUseExternalData"))
+	AActor* ExternalScreenTLActor;
+
 	/** 外部屏幕左上角（世界坐标） */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|External", meta = (EditCondition = "bUseExternalData"))
 	FVector ExternalScreenTL;
+
+	/** 外部屏幕右上角 Actor */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|External", meta = (EditCondition = "bUseExternalData"))
+	AActor* ExternalScreenTRActor;
 
 	/** 外部屏幕右上角（世界坐标） */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|External", meta = (EditCondition = "bUseExternalData"))
