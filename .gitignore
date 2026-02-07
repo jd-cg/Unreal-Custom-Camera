@@ -1,0 +1,41 @@
+# Unreal Engine 5 .gitignore
+
+# Compiled binaries and intermediates
+Binaries/
+Intermediate/
+DerivedDataCache/
+Build/
+
+# Plugin binaries and intermediates
+Plugins/**/Binaries/
+Plugins/**/Intermediate/
+
+# Content that can be regenerated
+Saved/
+Content/**/*.uasset
+!Content/**/*.umap
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Build scripts output
+*.log
+
+# Claude Code
+.claude/
+
+# Accidental Windows NUL device file
+nul
