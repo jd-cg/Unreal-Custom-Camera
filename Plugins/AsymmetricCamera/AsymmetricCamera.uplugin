@@ -5,7 +5,7 @@
 	"FriendlyName": "Asymmetric Camera",
 	"Description": "Provides off-axis / asymmetric frustum projection for cameras. Useful for VR, CAVE systems, and advanced rendering setups.",
 	"Category": "Rendering",
-	"CreatedBy": "MyCustomCam Team",
+	"CreatedBy": "JDCG Team",
 	"CreatedByURL": "",
 	"DocsURL": "",
 	"MarketplaceURL": "",
