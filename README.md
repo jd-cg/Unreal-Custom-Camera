@@ -44,6 +44,26 @@ AAsymmetricCameraActor
 | `TrackedActor` | Actor whose position is used as the eye position |
 | `ScreenComponent` | Reference to the screen component |
 
+### External Data Input
+
+Enable `bUseExternalData` to bypass the Screen component and define the projection screen via world-space coordinates or Actor references (e.g. calibration data from Max/Maya).
+
+| Parameter | Description |
+| --------- | ----------- |
+| `bUseExternalData` | Use external data instead of ScreenComponent |
+| `ExternalEyeActor` | Actor reference for eye position (overrides `ExternalEyePosition`) |
+| `ExternalEyePosition` | Eye position in world space |
+| `ExternalScreenBLActor` | Actor reference for screen bottom-left corner |
+| `ExternalScreenBL` | Screen bottom-left corner in world space |
+| `ExternalScreenBRActor` | Actor reference for screen bottom-right corner |
+| `ExternalScreenBR` | Screen bottom-right corner in world space |
+| `ExternalScreenTLActor` | Actor reference for screen top-left corner |
+| `ExternalScreenTL` | Screen top-left corner in world space |
+| `ExternalScreenTRActor` | Actor reference for screen top-right corner |
+| `ExternalScreenTR` | Screen top-right corner in world space |
+
+> Priority: Actor reference > FVector coordinate > TrackedActor/ScreenComponent fallback.
+
 ### Screen Component (`AsymmetricScreenComponent`)
 
 | Parameter | Description |
@@ -65,6 +85,15 @@ The screen plane lies on the component's local YZ plane with the normal along +X
 | `bShowLabels` | Corner labels and screen info text |
 | `bShowDebugInGame` | Show debug lines during gameplay |
 
+## Blueprint API
+
+| Function | Description |
+| -------- | ----------- |
+| `GetEyePosition()` | Returns the effective eye world position (priority: ExternalEyeActor > ExternalEyePosition > TrackedActor > component location) |
+| `GetEffectiveScreenCorners()` | Returns the four screen corners currently in use (external data or ScreenComponent) |
+| `SetExternalData(Eye, BL, BR, TL, TR)` | Set all external data points at once |
+| `CalculateOffAxisProjection()` | Manually compute the off-axis projection matrix and view rotation |
+
 ## How It Works
 
 Implements Robert Kooima's **Generalized Perspective Projection** algorithm:
@@ -79,6 +108,10 @@ Implements Robert Kooima's **Generalized Perspective Projection** algorithm:
 ```bash
 # Quick build (auto-detects UE5 path)
 QuickBuild.bat
+
+# If QuickBuild fails, open the project directly in Unreal Editor
+# and compile from there (Ctrl+Alt+F11)
+start "" "MyCustomCam.uproject"
 ```
 
 ## References

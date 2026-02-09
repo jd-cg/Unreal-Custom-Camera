@@ -44,6 +44,26 @@ AAsymmetricCameraActor
 | `TrackedActor` | 追踪目标 Actor，用作眼睛位置 |
 | `ScreenComponent` | 引用的屏幕组件 |
 
+### 外部数据输入
+
+启用 `bUseExternalData` 后可绕过 Screen 组件，通过世界坐标或 Actor 引用定义投影屏幕（如 Max/Maya 标定数据）。
+
+| 参数 | 说明 |
+| ---- | ---- |
+| `bUseExternalData` | 使用外部数据代替 ScreenComponent |
+| `ExternalEyeActor` | 外部眼睛位置 Actor 引用（优先于 `ExternalEyePosition`） |
+| `ExternalEyePosition` | 外部眼睛位置（世界坐标） |
+| `ExternalScreenBLActor` | 外部屏幕左下角 Actor 引用 |
+| `ExternalScreenBL` | 外部屏幕左下角（世界坐标） |
+| `ExternalScreenBRActor` | 外部屏幕右下角 Actor 引用 |
+| `ExternalScreenBR` | 外部屏幕右下角（世界坐标） |
+| `ExternalScreenTLActor` | 外部屏幕左上角 Actor 引用 |
+| `ExternalScreenTL` | 外部屏幕左上角（世界坐标） |
+| `ExternalScreenTRActor` | 外部屏幕右上角 Actor 引用 |
+| `ExternalScreenTR` | 外部屏幕右上角（世界坐标） |
+
+> 优先级：Actor 引用 > FVector 坐标 > TrackedActor/ScreenComponent 回退。
+
 ### Screen 组件 (AsymmetricScreenComponent)
 
 | 参数 | 说明 |
@@ -65,6 +85,15 @@ AAsymmetricCameraActor
 | `bShowLabels` | 角点标签和屏幕信息文字 |
 | `bShowDebugInGame` | 游戏运行时显示调试线 |
 
+## 蓝图 API
+
+| 函数 | 说明 |
+| ---- | ---- |
+| `GetEyePosition()` | 获取当前生效的眼睛世界坐标（优先级：ExternalEyeActor > ExternalEyePosition > TrackedActor > 组件自身位置） |
+| `GetEffectiveScreenCorners()` | 获取当前生效的屏幕四角坐标（外部数据或 ScreenComponent） |
+| `SetExternalData(Eye, BL, BR, TL, TR)` | 一次性设置全部外部数据 |
+| `CalculateOffAxisProjection()` | 手动计算离轴投影矩阵和视图旋转矩阵 |
+
 ## 工作原理
 
 基于 Robert Kooima 的 **广义透视投影 (Generalized Perspective Projection)** 算法：
@@ -79,6 +108,9 @@ AAsymmetricCameraActor
 ```bash
 # 快速编译（自动检测 UE5 路径）
 QuickBuild.bat
+
+# 如果 QuickBuild 无法编译，可直接打开项目在编辑器中编译（Ctrl+Alt+F11）
+start "" "MyCustomCam.uproject"
 ```
 
 ## 参考资料
