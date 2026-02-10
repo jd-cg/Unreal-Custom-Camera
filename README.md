@@ -116,7 +116,9 @@ Implements Robert Kooima's **Generalized Perspective Projection** algorithm:
 4. Enable **Enable MRQ Support** (on by default)
 5. Render with Movie Render Queue — the output uses asymmetric projection while the animation is driven by the CineCameraActor
 
-> **Note:** MRQ high-resolution tiling is not compatible with asymmetric projection. Set tiling to 1×1.
+> **Note:**
+> - Set `r.MotionBlurQuality` to `0` in MRQ Console Variables to disable motion blur — the projection override does not update previous-frame transform data, which causes incorrect motion blur.
+> - MRQ high-resolution tiling is not compatible with asymmetric projection. Set tiling to 1×1.
 
 ## Build
 

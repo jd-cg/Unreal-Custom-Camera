@@ -116,7 +116,9 @@ AAsymmetricCameraActor
 4. 确保 **Enable MRQ Support** 已开启（默认开启）
 5. 使用 Movie Render Queue 渲染 — 输出使用非对称投影，动画由 CineCameraActor 驱动
 
-> **注意：** MRQ 的高分辨率 tiling 渲染与非对称投影不兼容，建议将 tiling 设为 1×1。
+> **注意：**
+> - 在 MRQ 的 Console Variables 中设置 `r.MotionBlurQuality 0` 关闭运动模糊 — 投影覆盖不会更新上一帧的 Transform 数据，会导致运动模糊计算错误。
+> - MRQ 的高分辨率 tiling 渲染与非对称投影不兼容，建议将 tiling 设为 1×1。
 
 ## 编译
 
