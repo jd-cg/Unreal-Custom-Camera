@@ -1,140 +1,139 @@
-# Asymmetric Camera — UE5 Off-Axis Projection Plugin
+# Asymmetric Camera — UE5 非对称投影相机插件
 
-**[中文文档](README_CN.md)**
+**[English](README_EN.md)**
 
-An off-axis / asymmetric frustum projection plugin for **Unreal Engine 5.4**, designed for CAVE systems, projection mapping, multi-display setups, and head-tracked displays.
+适用于 **Unreal Engine 5.4** 的离轴投影插件，可用于 CAVE 系统、投影映射、多屏显示和头部追踪显示。
 
-## Features
+## 功能
 
-- **Zero-overhead projection override** — directly overrides the player camera projection matrix via `ISceneViewExtension`, no Render Target or SceneCapture needed
-- **Interactive editor visualization** — drag to adjust screen position, orientation, and size with real-time frustum preview
-- **Granular debug toggles** — screen outline, frustum lines, eye handle, near plane, and labels can be toggled independently
-- **Stereoscopic rendering** — built-in eye separation for stereo left/right eye output
-- **Blueprint support** — all parameters exposed to Blueprint
-- **External data input** — supports importing calibration data from Max/Maya and referencing scene Actor transforms
-- **MRQ (Movie Render Queue) support** — asymmetric projection works with offline rendering; can follow a CineCameraActor driven by Sequencer; motion blur is fully supported
+- **零开销投影覆盖** — 通过 `ISceneViewExtension` 直接覆盖玩家相机投影矩阵，无需 Render Target 或 SceneCapture
+- **编辑器交互可视化** — 可直观拖拽调整屏幕位置、朝向和大小，实时预览视锥
+- **精细调试开关** — 屏幕边框、视锥线、眼球、近裁切面、标签均可独立开关
+- **立体渲染** — 内置眼间距，支持左眼/右眼立体输出
+- **蓝图支持** — 所有参数均暴露给蓝图
+- **外部数据输入** — 支持导入 Max/Maya 标定数据，可引用场景 Actor 的 Transform
+- **MRQ 渲染支持** — 非对称投影支持离线渲染，可跟随 Sequencer 驱动的电影相机，完整支持运动模糊
 
-## Quick Start
+## 快速开始
 
-1. Place an `AsymmetricCameraActor` in your level
-2. Select the Actor and adjust the **Screen** component's Transform and `ScreenWidth` / `ScreenHeight` in the Details panel
-3. Press Play — the player camera projection is automatically overridden
-4. *(Optional)* Set `Tracked Actor` for head tracking
+1. 在关卡中放置 `AsymmetricCameraActor`
+2. 选中 Actor，在 Details 面板调整 **Screen** 组件的位置/旋转和 `ScreenWidth` / `ScreenHeight`
+3. 按 Play，玩家相机投影自动被覆盖
+4. （可选）设置 `Tracked Actor` 实现头部追踪
 
-## Component Hierarchy
+## 组件结构
 
 ```text
 AAsymmetricCameraActor
 └── Root (SceneComponent)
-    ├── Screen (AsymmetricScreenComponent — projection screen plane)
-    └── Camera (AsymmetricCameraComponent — eye position + projection calculation)
+    ├── Screen (AsymmetricScreenComponent — 投影屏幕平面)
+    └── Camera (AsymmetricCameraComponent — 眼睛位置 + 投影计算)
 ```
 
-## Parameters
+## 参数说明
 
-### Camera Component (`AsymmetricCameraComponent`)
+### Camera 组件 (AsymmetricCameraComponent)
 
-| Parameter | Description |
-| --------- | ----------- |
-| `bUseAsymmetricProjection` | Enable / disable off-axis projection |
-| `NearClip` | Near clipping plane distance (default 20) |
-| `FarClip` | Far clipping plane distance (0 = infinite) |
-| `EyeSeparation` | Inter-ocular distance for stereo rendering (0 = mono) |
-| `EyeOffset` | Left eye −1 / Center 0 / Right eye 1 |
-| `bMatchViewportAspectRatio` | Auto-match screen aspect ratio to prevent stretching |
-| `bEnableMRQSupport` | Apply asymmetric projection during MRQ offline rendering |
-| `TrackedActor` | Actor whose position is used as the eye position |
-| `bFollowTargetCamera` | Sync owner actor Transform to a target camera each frame |
-| `TargetCamera` | Target camera actor to follow (typically CineCameraActor) |
-| `ScreenComponent` | Reference to the screen component (auto-detected on same actor) |
+| 参数 | 说明 |
+| ---- | ---- |
+| `bUseAsymmetricProjection` | 启用/禁用离轴投影 |
+| `NearClip` | 近裁切面距离，默认 20 |
+| `FarClip` | 远裁切面距离，0 表示无限远 |
+| `EyeSeparation` | 立体渲染眼间距，0 为单目 |
+| `EyeOffset` | 左眼 -1 / 中心 0 / 右眼 1 |
+| `bMatchViewportAspectRatio` | 自动匹配屏幕宽高比，防止画面拉伸 |
+| `bEnableMRQSupport` | MRQ 离线渲染时也应用非对称投影 |
+| `TrackedActor` | 追踪目标 Actor，用作眼睛位置 |
+| `bFollowTargetCamera` | 每帧同步 Owner Actor 的 Transform 到目标相机 |
+| `TargetCamera` | 要跟随的目标相机 Actor（通常是 CineCameraActor） |
+| `ScreenComponent` | 引用的屏幕组件（自动查找同 Actor 上的组件） |
 
-### External Data Input
+### 外部数据输入
 
-Enable `bUseExternalData` to bypass the Screen component and define the projection screen via world-space coordinates or Actor references (e.g. calibration data from Max/Maya).
+启用 `bUseExternalData` 后可绕过 Screen 组件，通过世界坐标或 Actor 引用定义投影屏幕（如 Max/Maya 标定数据）。
 
-| Parameter | Description |
-| --------- | ----------- |
-| `bUseExternalData` | Use external data instead of ScreenComponent |
-| `ExternalEyeActor` | Actor reference for eye position (overrides `ExternalEyePosition`) |
-| `ExternalEyePosition` | Eye position in world space |
-| `ExternalScreenBLActor` | Actor reference for screen bottom-left corner |
-| `ExternalScreenBL` | Screen bottom-left corner in world space |
-| `ExternalScreenBRActor` | Actor reference for screen bottom-right corner |
-| `ExternalScreenBR` | Screen bottom-right corner in world space |
-| `ExternalScreenTLActor` | Actor reference for screen top-left corner |
-| `ExternalScreenTL` | Screen top-left corner in world space |
-| `ExternalScreenTRActor` | Actor reference for screen top-right corner |
-| `ExternalScreenTR` | Screen top-right corner in world space |
+| 参数 | 说明 |
+| ---- | ---- |
+| `bUseExternalData` | 使用外部数据代替 ScreenComponent |
+| `ExternalEyeActor` | 外部眼睛位置 Actor 引用（优先于 `ExternalEyePosition`） |
+| `ExternalEyePosition` | 外部眼睛位置（世界坐标） |
+| `ExternalScreenBLActor` | 外部屏幕左下角 Actor 引用 |
+| `ExternalScreenBL` | 外部屏幕左下角（世界坐标） |
+| `ExternalScreenBRActor` | 外部屏幕右下角 Actor 引用 |
+| `ExternalScreenBR` | 外部屏幕右下角（世界坐标） |
+| `ExternalScreenTLActor` | 外部屏幕左上角 Actor 引用 |
+| `ExternalScreenTL` | 外部屏幕左上角（世界坐标） |
+| `ExternalScreenTRActor` | 外部屏幕右上角 Actor 引用 |
+| `ExternalScreenTR` | 外部屏幕右上角（世界坐标） |
 
-> Priority: Actor reference > FVector coordinate > TrackedActor/ScreenComponent fallback.
+> 优先级：Actor 引用 > FVector 坐标 > TrackedActor/ScreenComponent 回退。
 
-### Screen Component (`AsymmetricScreenComponent`)
+### Screen 组件 (AsymmetricScreenComponent)
 
-| Parameter | Description |
-| --------- | ----------- |
-| `ScreenWidth` | Screen width in world units (default 160) |
-| `ScreenHeight` | Screen height in world units (default 90) |
+| 参数 | 说明 |
+| ---- | ---- |
+| `ScreenWidth` | 屏幕宽度，世界单位，默认 160 |
+| `ScreenHeight` | 屏幕高度，世界单位，默认 90 |
 
-The screen plane lies on the component's local YZ plane with the normal along +X. Use the component's Transform to control position and orientation.
+屏幕平面在组件本地 YZ 平面，法线沿 +X 方向。通过组件的 Transform 控制位置和朝向。
 
-### Debug Visualization
+### 调试开关
 
-| Parameter | Description |
-| --------- | ----------- |
-| `bShowDebugFrustum` | Master toggle for editor debug visualization |
-| `bShowScreenOutline` | Screen border + diagonal + normal arrow (green) |
-| `bShowFrustumLines` | Lines from eye to screen corners (yellow) |
-| `bShowEyeHandle` | Eye position sphere (yellow) |
-| `bShowNearPlane` | Near clipping plane rectangle (red) |
-| `bShowLabels` | Corner labels and screen info text |
-| `bShowDebugInGame` | Show debug lines during gameplay |
+| 参数 | 说明 |
+| ---- | ---- |
+| `bShowDebugFrustum` | 主开关：编辑器调试可视化 |
+| `bShowScreenOutline` | 屏幕边框 + 对角线 + 法线箭头（绿色） |
+| `bShowFrustumLines` | 眼睛到屏幕四角的连线（黄色） |
+| `bShowEyeHandle` | 眼球位置球体（黄色） |
+| `bShowNearPlane` | 近裁切面矩形（红色） |
+| `bShowLabels` | 角点标签和屏幕信息文字 |
+| `bShowDebugInGame` | 游戏运行时显示调试线 |
 
-## Blueprint API
+## 蓝图 API
 
-| Function | Description |
-| -------- | ----------- |
-| `GetEyePosition()` | Returns the effective eye world position (priority: ExternalEyeActor > ExternalEyePosition > TrackedActor > component location) |
-| `GetEffectiveScreenCorners()` | Returns the four screen corners currently in use (external data or ScreenComponent) |
-| `SetExternalData(Eye, BL, BR, TL, TR)` | Set all external data points at once |
-| `CalculateOffAxisProjection()` | Manually compute the off-axis projection matrix and view rotation |
+| 函数 | 说明 |
+| ---- | ---- |
+| `GetEyePosition()` | 获取当前生效的眼睛世界坐标（优先级：ExternalEyeActor > ExternalEyePosition > TrackedActor > 组件自身位置） |
+| `GetEffectiveScreenCorners()` | 获取当前生效的屏幕四角坐标（外部数据或 ScreenComponent） |
+| `SetExternalData(Eye, BL, BR, TL, TR)` | 一次性设置全部外部数据 |
+| `CalculateOffAxisProjection()` | 手动计算离轴投影矩阵和视图旋转矩阵 |
 
-## How It Works
+## 工作原理
 
-Implements Robert Kooima's **Generalized Perspective Projection** algorithm:
+基于 Robert Kooima 的 **广义透视投影 (Generalized Perspective Projection)** 算法：
 
-1. On `BeginPlay`, `UAsymmetricCameraComponent` registers an `FAsymmetricViewExtension` (`FWorldSceneViewExtension`)
-2. Each frame, UE5 calls `SetupViewProjectionMatrix()` on the extension
-3. The extension computes the off-axis projection matrix (UE5 reversed-Z format) and screen-aligned view rotation matrix
-4. Both are written into `FSceneViewProjectionData`, directly overriding the player camera — no RT, no SceneCapture, no extra rendering pass
-5. For MRQ offline rendering, the extension also overrides the projection in `SetupView()` (since MRQ does not call `SetupViewProjectionMatrix`)
+1. `BeginPlay` 时，`UAsymmetricCameraComponent` 注册 `FAsymmetricViewExtension`（`FWorldSceneViewExtension`）
+2. 每帧 UE5 调用扩展的 `SetupViewProjectionMatrix()`
+3. 扩展计算离轴投影矩阵（UE5 reversed-Z 格式）和屏幕对齐的视图旋转矩阵
+4. 两者写入 `FSceneViewProjectionData`，直接覆盖玩家相机 — 无 RT、无 SceneCapture、无额外渲染 Pass
+5. MRQ 离线渲染时，扩展在 `SetupView()` 中覆盖投影（因为 MRQ 不调用 `SetupViewProjectionMatrix`）
 
-## MRQ Rendering Workflow
+## MRQ 渲染工作流
 
-1. Place an `AsymmetricCameraActor` in the level and configure the screen
-2. Place a `CineCameraActor` and animate it with Sequencer
-3. On the AsymmetricCamera component, enable **Follow Target Camera** and set **Target Camera** to the CineCameraActor
-4. Enable **Enable MRQ Support** (on by default)
-5. Render with Movie Render Queue — the output uses asymmetric projection while the animation is driven by the CineCameraActor
+1. 在关卡中放置 `AsymmetricCameraActor`，配置屏幕参数
+2. 放置 `CineCameraActor`，用 Sequencer 制作动画
+3. 在 AsymmetricCamera 组件上勾选 **Follow Target Camera**，将 **Target Camera** 指向 CineCameraActor
+4. 确保 **Enable MRQ Support** 已开启（默认开启）
+5. 使用 Movie Render Queue 渲染 — 输出使用非对称投影，动画由 CineCameraActor 驱动
 
-> **Note:**
-> - Motion blur is fully supported — the plugin automatically tracks previous-frame camera transforms for correct velocity buffer calculation.
-> - MRQ high-resolution tiling is not compatible with asymmetric projection. Set tiling to 1×1.
+> **注意：**
+> - 运动模糊已完整支持 — 插件自动追踪前帧相机变换，确保速度缓冲区计算正确。
+> - MRQ 的高分辨率 tiling 渲染与非对称投影不兼容，建议将 tiling 设为 1×1。
 
-## Build
+## 编译
 
 ```bash
-# Quick build (auto-detects UE5 path)
+# 快速编译（自动检测 UE5 路径）
 QuickBuild.bat
 
-# If QuickBuild fails, open the project directly in Unreal Editor
-# and compile from there (Ctrl+Alt+F11)
+# 如果 QuickBuild 无法编译，可直接打开项目在编辑器中编译（Ctrl+Alt+F11）
 start "" "MyCustomCam.uproject"
 ```
 
-## References
+## 参考资料
 
 - [Robert Kooima: Generalized Perspective Projection](http://csc.lsu.edu/~kooima/articles/genperspective/)
 
-## License
+## 许可证
 
 Apache License 2.0
