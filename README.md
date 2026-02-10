@@ -12,6 +12,7 @@ An off-axis / asymmetric frustum projection plugin for **Unreal Engine 5.4**, de
 - **Stereoscopic rendering** — built-in eye separation for stereo left/right eye output
 - **Blueprint support** — all parameters exposed to Blueprint
 - **External data input** — supports importing calibration data from Max/Maya and referencing scene Actor transforms
+- **MRQ (Movie Render Queue) support** — asymmetric projection works with offline rendering; can follow a CineCameraActor driven by Sequencer
 
 ## Quick Start
 
@@ -41,8 +42,11 @@ AAsymmetricCameraActor
 | `EyeSeparation` | Inter-ocular distance for stereo rendering (0 = mono) |
 | `EyeOffset` | Left eye −1 / Center 0 / Right eye 1 |
 | `bMatchViewportAspectRatio` | Auto-match screen aspect ratio to prevent stretching |
+| `bEnableMRQSupport` | Apply asymmetric projection during MRQ offline rendering |
 | `TrackedActor` | Actor whose position is used as the eye position |
-| `ScreenComponent` | Reference to the screen component |
+| `bFollowTargetCamera` | Sync owner actor Transform to a target camera each frame |
+| `TargetCamera` | Target camera actor to follow (typically CineCameraActor) |
+| `ScreenComponent` | Reference to the screen component (auto-detected on same actor) |
 
 ### External Data Input
 
@@ -102,6 +106,17 @@ Implements Robert Kooima's **Generalized Perspective Projection** algorithm:
 2. Each frame, UE5 calls `SetupViewProjectionMatrix()` on the extension
 3. The extension computes the off-axis projection matrix (UE5 reversed-Z format) and screen-aligned view rotation matrix
 4. Both are written into `FSceneViewProjectionData`, directly overriding the player camera — no RT, no SceneCapture, no extra rendering pass
+5. For MRQ offline rendering, the extension also overrides the projection in `SetupView()` (since MRQ does not call `SetupViewProjectionMatrix`)
+
+## MRQ Rendering Workflow
+
+1. Place an `AsymmetricCameraActor` in the level and configure the screen
+2. Place a `CineCameraActor` and animate it with Sequencer
+3. On the AsymmetricCamera component, enable **Follow Target Camera** and set **Target Camera** to the CineCameraActor
+4. Enable **Enable MRQ Support** (on by default)
+5. Render with Movie Render Queue — the output uses asymmetric projection while the animation is driven by the CineCameraActor
+
+> **Note:** MRQ high-resolution tiling is not compatible with asymmetric projection. Set tiling to 1×1.
 
 ## Build
 
@@ -117,7 +132,6 @@ start "" "MyCustomCam.uproject"
 ## References
 
 - [Robert Kooima: Generalized Perspective Projection](http://csc.lsu.edu/~kooima/articles/genperspective/)
-- [GitHub: fweidner/UE4-Plugin-OffAxis](https://github.com/fweidner/UE4-Plugin-OffAxis)
 
 ## License
 

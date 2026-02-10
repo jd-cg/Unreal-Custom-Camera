@@ -53,6 +53,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera")
 	bool bMatchViewportAspectRatio;
 
+	/** 开关：MRQ（Movie Render Queue）离线渲染时也应用非对称投影。
+	 *  开启后可将此组件挂到 CineCameraActor 上，配合 Sequencer + MRQ 使用。
+	 *  MRQ 的 tiling 高分辨率渲染与非对称投影不兼容，建议 tiling 设为 1x1。 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera")
+	bool bEnableMRQSupport;
+
 	/** 总开关：编辑器视口里显示调试可视化 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|Debug")
 	bool bShowDebugFrustum;
@@ -85,9 +91,20 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|Tracking")
 	AActor* TrackedActor;
 
-	/** 关联的屏幕组件，定义投影平面 */
+	/** 开关：Owner Actor 的 Transform 完全跟随此相机。
+	 *  用于 MRQ 渲染场景：Sequencer 驱动电影相机动画，非对称相机自动同步位置和旋转。 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|Tracking")
+	bool bFollowTargetCamera;
+
+	/** 要跟随的目标相机 Actor（通常是 CineCameraActor）。
+	 *  开启 bFollowTargetCamera 后，Owner Actor 每帧同步此相机的 Transform。 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|Tracking", meta = (EditCondition = "bFollowTargetCamera"))
+	AActor* TargetCamera;
+
+	/** 关联的屏幕组件，定义投影平面。
+	 *  自动查找同 Actor 上的 AsymmetricScreenComponent，也可手动指定。 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera")
-	UAsymmetricScreenComponent* ScreenComponent;
+	TObjectPtr<UAsymmetricScreenComponent> ScreenComponent;
 
 	// ---- 外部数据输入（对接 Max/Maya 等外部工具） ----
 
@@ -161,6 +178,7 @@ public:
 	bool CalculateOffAxisProjection(const FVector& EyePosition, FRotator& OutViewRotation, FMatrix& OutProjectionMatrix);
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	virtual void OnRegister() override;
 
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;

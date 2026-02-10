@@ -21,7 +21,10 @@ UAsymmetricCameraComponent::UAsymmetricCameraComponent()
 	bShowLabels = true;
 	bShowDebugInGame = false;
 	bMatchViewportAspectRatio = true;
+	bEnableMRQSupport = true;
 	TrackedActor = nullptr;
+	bFollowTargetCamera = false;
+	TargetCamera = nullptr;
 	ScreenComponent = nullptr;
 	NearClip = 20.0f;
 	FarClip = 0.0f; // 0 = 无限远（UE5 默认）
@@ -36,6 +39,21 @@ UAsymmetricCameraComponent::UAsymmetricCameraComponent()
 	ExternalScreenTL = FVector(100.0f, -80.0f,  45.0f);
 	ExternalScreenTRActor = nullptr;
 	ExternalScreenTR = FVector(100.0f,  80.0f,  45.0f);
+}
+
+void UAsymmetricCameraComponent::OnRegister()
+{
+	Super::OnRegister();
+
+	// Auto-find ScreenComponent on the same actor (works in editor and at runtime)
+	if (!ScreenComponent)
+	{
+		AActor* Owner = GetOwner();
+		if (Owner)
+		{
+			ScreenComponent = Owner->FindComponentByClass<UAsymmetricScreenComponent>();
+		}
+	}
 }
 
 void UAsymmetricCameraComponent::BeginPlay()
@@ -68,6 +86,18 @@ void UAsymmetricCameraComponent::EndPlay(const EEndPlayReason::Type EndPlayReaso
 void UAsymmetricCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	// Sync owner actor transform to target camera
+	if (bFollowTargetCamera && TargetCamera)
+	{
+		AActor* Owner = GetOwner();
+		if (Owner)
+		{
+			Owner->SetActorLocationAndRotation(
+				TargetCamera->GetActorLocation(),
+				TargetCamera->GetActorRotation());
+		}
+	}
 
 	if (bShowDebugInGame)
 	{

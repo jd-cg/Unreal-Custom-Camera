@@ -115,3 +115,35 @@ void FAsymmetricViewExtension::SetupViewProjectionMatrix(FSceneViewProjectionDat
 		InOutProjectionData.SetConstrainedViewRectangle(ConstrainedRect);
 	}
 }
+
+void FAsymmetricViewExtension::SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView)
+{
+	// MRQ (Movie Render Queue) does not call SetupViewProjectionMatrix,
+	// so we apply the asymmetric projection here for offline renders.
+	if (!InView.bIsOfflineRender)
+	{
+		return;
+	}
+
+	if (!CameraComponent.IsValid()
+		|| !CameraComponent->bUseAsymmetricProjection
+		|| !CameraComponent->bEnableMRQSupport)
+	{
+		return;
+	}
+
+	FVector EyePosition = CameraComponent->GetEyePosition();
+	FRotator ViewRotation;
+	FMatrix ProjectionMatrix;
+
+	if (!CameraComponent->CalculateOffAxisProjection(EyePosition, ViewRotation, ProjectionMatrix))
+	{
+		return;
+	}
+
+	InView.UpdateProjectionMatrix(ProjectionMatrix);
+
+	InView.ViewLocation = EyePosition;
+	InView.ViewRotation = ViewRotation;
+	InView.UpdateViewMatrix();
+}

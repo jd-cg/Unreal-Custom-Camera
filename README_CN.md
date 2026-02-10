@@ -12,6 +12,7 @@
 - **立体渲染** — 内置眼间距，支持左眼/右眼立体输出
 - **蓝图支持** — 所有参数均暴露给蓝图
 - **外部数据输入** — 支持导入 Max/Maya 标定数据，可引用场景 Actor 的 Transform
+- **MRQ 渲染支持** — 非对称投影支持离线渲染，可跟随 Sequencer 驱动的电影相机
 
 ## 快速开始
 
@@ -41,8 +42,11 @@ AAsymmetricCameraActor
 | `EyeSeparation` | 立体渲染眼间距，0 为单目 |
 | `EyeOffset` | 左眼 -1 / 中心 0 / 右眼 1 |
 | `bMatchViewportAspectRatio` | 自动匹配屏幕宽高比，防止画面拉伸 |
+| `bEnableMRQSupport` | MRQ 离线渲染时也应用非对称投影 |
 | `TrackedActor` | 追踪目标 Actor，用作眼睛位置 |
-| `ScreenComponent` | 引用的屏幕组件 |
+| `bFollowTargetCamera` | 每帧同步 Owner Actor 的 Transform 到目标相机 |
+| `TargetCamera` | 要跟随的目标相机 Actor（通常是 CineCameraActor） |
+| `ScreenComponent` | 引用的屏幕组件（自动查找同 Actor 上的组件） |
 
 ### 外部数据输入
 
@@ -102,6 +106,17 @@ AAsymmetricCameraActor
 2. 每帧 UE5 调用扩展的 `SetupViewProjectionMatrix()`
 3. 扩展计算离轴投影矩阵（UE5 reversed-Z 格式）和屏幕对齐的视图旋转矩阵
 4. 两者写入 `FSceneViewProjectionData`，直接覆盖玩家相机 — 无 RT、无 SceneCapture、无额外渲染 Pass
+5. MRQ 离线渲染时，扩展在 `SetupView()` 中覆盖投影（因为 MRQ 不调用 `SetupViewProjectionMatrix`）
+
+## MRQ 渲染工作流
+
+1. 在关卡中放置 `AsymmetricCameraActor`，配置屏幕参数
+2. 放置 `CineCameraActor`，用 Sequencer 制作动画
+3. 在 AsymmetricCamera 组件上勾选 **Follow Target Camera**，将 **Target Camera** 指向 CineCameraActor
+4. 确保 **Enable MRQ Support** 已开启（默认开启）
+5. 使用 Movie Render Queue 渲染 — 输出使用非对称投影，动画由 CineCameraActor 驱动
+
+> **注意：** MRQ 的高分辨率 tiling 渲染与非对称投影不兼容，建议将 tiling 设为 1×1。
 
 ## 编译
 
@@ -116,7 +131,6 @@ start "" "MyCustomCam.uproject"
 ## 参考资料
 
 - [Robert Kooima: Generalized Perspective Projection](http://csc.lsu.edu/~kooima/articles/genperspective/)
-- [GitHub: fweidner/UE4-Plugin-OffAxis](https://github.com/fweidner/UE4-Plugin-OffAxis)
 
 ## 许可证
 
