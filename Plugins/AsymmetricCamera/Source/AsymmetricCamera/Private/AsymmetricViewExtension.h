@@ -24,4 +24,9 @@ public:
 
 private:
 	TWeakObjectPtr<UAsymmetricCameraComponent> CameraComponent;
+
+	// Previous frame data for motion blur
+	bool bHasPreviousViewData = false;
+	FVector PrevEyePosition = FVector::ZeroVector;
+	FRotator PrevViewRotation = FRotator::ZeroRotator;
 };

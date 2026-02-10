@@ -12,7 +12,7 @@
 - **立体渲染** — 内置眼间距，支持左眼/右眼立体输出
 - **蓝图支持** — 所有参数均暴露给蓝图
 - **外部数据输入** — 支持导入 Max/Maya 标定数据，可引用场景 Actor 的 Transform
-- **MRQ 渲染支持** — 非对称投影支持离线渲染，可跟随 Sequencer 驱动的电影相机
+- **MRQ 渲染支持** — 非对称投影支持离线渲染，可跟随 Sequencer 驱动的电影相机，完整支持运动模糊
 
 ## 快速开始
 
@@ -117,7 +117,7 @@ AAsymmetricCameraActor
 5. 使用 Movie Render Queue 渲染 — 输出使用非对称投影，动画由 CineCameraActor 驱动
 
 > **注意：**
-> - 在 MRQ 的 Console Variables 中设置 `r.MotionBlurQuality 0` 关闭运动模糊 — 投影覆盖不会更新上一帧的 Transform 数据，会导致运动模糊计算错误。
+> - 运动模糊已完整支持 — 插件自动追踪前帧相机变换，确保速度缓冲区计算正确。
 > - MRQ 的高分辨率 tiling 渲染与非对称投影不兼容，建议将 tiling 设为 1×1。
 
 ## 编译

@@ -141,6 +141,18 @@ void FAsymmetricViewExtension::SetupView(FSceneViewFamily& InViewFamily, FSceneV
 		return;
 	}
 
+	// Set previous frame transform for motion blur support.
+	// On the first frame we use current data (no motion blur for frame 0).
+	if (bHasPreviousViewData)
+	{
+		InView.PreviousViewTransform = FTransform(PrevViewRotation.Quaternion(), PrevEyePosition);
+	}
+
+	// Cache current frame data for next frame
+	PrevEyePosition = EyePosition;
+	PrevViewRotation = ViewRotation;
+	bHasPreviousViewData = true;
+
 	InView.UpdateProjectionMatrix(ProjectionMatrix);
 
 	InView.ViewLocation = EyePosition;

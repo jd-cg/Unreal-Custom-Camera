@@ -12,7 +12,7 @@ An off-axis / asymmetric frustum projection plugin for **Unreal Engine 5.4**, de
 - **Stereoscopic rendering** — built-in eye separation for stereo left/right eye output
 - **Blueprint support** — all parameters exposed to Blueprint
 - **External data input** — supports importing calibration data from Max/Maya and referencing scene Actor transforms
-- **MRQ (Movie Render Queue) support** — asymmetric projection works with offline rendering; can follow a CineCameraActor driven by Sequencer
+- **MRQ (Movie Render Queue) support** — asymmetric projection works with offline rendering; can follow a CineCameraActor driven by Sequencer; motion blur is fully supported
 
 ## Quick Start
 
@@ -117,7 +117,7 @@ Implements Robert Kooima's **Generalized Perspective Projection** algorithm:
 5. Render with Movie Render Queue — the output uses asymmetric projection while the animation is driven by the CineCameraActor
 
 > **Note:**
-> - Set `r.MotionBlurQuality` to `0` in MRQ Console Variables to disable motion blur — the projection override does not update previous-frame transform data, which causes incorrect motion blur.
+> - Motion blur is fully supported — the plugin automatically tracks previous-frame camera transforms for correct velocity buffer calculation.
 > - MRQ high-resolution tiling is not compatible with asymmetric projection. Set tiling to 1×1.
 
 ## Build
