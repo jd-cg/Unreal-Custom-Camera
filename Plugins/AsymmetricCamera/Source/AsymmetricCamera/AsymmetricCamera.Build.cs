@@ -38,7 +38,9 @@ public class AsymmetricCamera : ModuleRules
 			new string[]
 			{
 				"Slate",
-				"SlateCore"
+				"SlateCore",
+				"MovieRenderPipelineCore",
+				"MovieRenderPipelineRenderPasses"
 			}
 		);
 

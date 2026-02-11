@@ -13,6 +13,7 @@ UAsymmetricCameraComponent::UAsymmetricCameraComponent()
 	bUseAsymmetricProjection = true;
 	EyeSeparation = 0.0f;
 	EyeOffset = 0.0f;
+	StereoLayout = EAsymmetricStereoLayout::None;
 	bShowDebugFrustum = true;
 	bShowScreenOutline = true;
 	bShowFrustumLines = true;

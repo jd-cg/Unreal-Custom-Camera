@@ -10,6 +10,7 @@ An off-axis / asymmetric frustum projection plugin for **Unreal Engine 5.4**, de
 - **Interactive editor visualization** — drag to adjust screen position, orientation, and size with real-time frustum preview
 - **Granular debug toggles** — screen outline, frustum lines, eye handle, near plane, and labels can be toggled independently
 - **Stereoscopic rendering** — built-in eye separation for stereo left/right eye output
+- **MRQ stereo rendering** — custom render pass that renders both eyes per frame and auto-composites SBS/TB video (bundled FFmpeg)
 - **Blueprint support** — all parameters exposed to Blueprint
 - **External data input** — supports importing calibration data from Max/Maya and referencing scene Actor transforms
 - **MRQ (Movie Render Queue) support** — asymmetric projection works with offline rendering; can follow a CineCameraActor driven by Sequencer; motion blur is fully supported
@@ -41,6 +42,7 @@ AAsymmetricCameraActor
 | `FarClip` | Far clipping plane distance (0 = infinite) |
 | `EyeSeparation` | Inter-ocular distance for stereo rendering (0 = mono) |
 | `EyeOffset` | Left eye −1 / Center 0 / Right eye 1 |
+| `StereoLayout` | Stereo layout mode: Mono / Side by Side / Top Bottom |
 | `bMatchViewportAspectRatio` | Auto-match screen aspect ratio to prevent stretching |
 | `bEnableMRQSupport` | Apply asymmetric projection during MRQ offline rendering |
 | `TrackedActor` | Actor whose position is used as the eye position |
@@ -119,6 +121,55 @@ Implements Robert Kooima's **Generalized Perspective Projection** algorithm:
 > **Note:**
 > - Motion blur is fully supported — the plugin automatically tracks previous-frame camera transforms for correct velocity buffer calculation.
 > - MRQ high-resolution tiling is not compatible with asymmetric projection. Set tiling to 1×1.
+
+## MRQ Stereo Rendering
+
+The plugin provides an `Asymmetric Stereo Pass` for rendering stereo video (Side-by-Side or Top-Bottom) via MRQ.
+
+### Setup
+
+1. In the MRQ Job's **Render Pass** section, remove the default "Deferred Rendering" and add **Asymmetric Stereo Pass**
+2. Configure the pass parameters:
+
+| Parameter | Description |
+| --------- | ----------- |
+| `StereoLayout` | Side by Side (LR) or Top / Bottom (LR) |
+| `EyeSeparation` | Inter-ocular distance in centimeters (default 6.4) |
+| `bSwapEyes` | Swap left and right eye output |
+| `bAutoComposite` | Auto-run FFmpeg to composite after rendering (on by default) |
+| `FFmpegPath` | Path to FFmpeg executable; leave empty to use the bundled one (file picker supported) |
+| `VideoCodec` | Video encoder: H.264 / H.265 / ProRes / VP9 / AV1 |
+| `CompositeQuality` | CRF quality value (0=lossless, 18=recommended, 51=worst) |
+| `OutputFormat` | Output format: MP4 / MOV / MKV / AVI |
+| `bDeleteSourceAfterComposite` | Auto-delete left/right eye source sequences after successful composite |
+
+3. Include `{camera_name}` in the output filename template (auto-filled with LeftEye / RightEye)
+4. After rendering, the plugin automatically composites SBS/TB video into the output directory
+
+### FFmpeg
+
+The plugin bundles ffmpeg.exe under `ThirdParty/FFmpeg/Win64/`. If missing, run the download script:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "Plugins/AsymmetricCamera/ThirdParty/FFmpeg/download_ffmpeg.ps1"
+```
+
+You can also set `FFmpegPath` to point to an FFmpeg installation on your system.
+
+## Git LFS
+
+This project uses Git LFS to manage large binary files (e.g. the bundled ffmpeg.exe). Make sure Git LFS is installed before cloning:
+
+```bash
+git lfs install
+git clone <repo-url>
+```
+
+If you've already cloned without LFS:
+
+```bash
+git lfs pull
+```
 
 ## Build
 
