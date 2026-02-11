@@ -148,13 +148,7 @@ AAsymmetricCameraActor
 
 ### FFmpeg
 
-插件在 `ThirdParty/FFmpeg/Win64/` 下内置了 ffmpeg.exe。如果缺失，运行下载脚本：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File "Plugins/AsymmetricCamera/ThirdParty/FFmpeg/download_ffmpeg.ps1"
-```
-
-也可以在 `FFmpegPath` 中手动指定系统上已安装的 FFmpeg 路径。
+插件在 `ThirdParty/FFmpeg/Win64/` 下内置了 ffmpeg.exe（通过 Git LFS 管理）。也可以在 `FFmpegPath` 中手动指定系统上已安装的 FFmpeg 路径。
 
 ## Git LFS
 

@@ -148,13 +148,7 @@ The plugin provides an `Asymmetric Stereo Pass` for rendering stereo video (Side
 
 ### FFmpeg
 
-The plugin bundles ffmpeg.exe under `ThirdParty/FFmpeg/Win64/`. If missing, run the download script:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File "Plugins/AsymmetricCamera/ThirdParty/FFmpeg/download_ffmpeg.ps1"
-```
-
-You can also set `FFmpegPath` to point to an FFmpeg installation on your system.
+The plugin bundles ffmpeg.exe under `ThirdParty/FFmpeg/Win64/` (managed via Git LFS). You can also set `FFmpegPath` to point to an FFmpeg installation on your system.
 
 ## Git LFS
 
