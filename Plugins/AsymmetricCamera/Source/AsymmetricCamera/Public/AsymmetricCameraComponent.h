@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/SceneComponent.h"
+#include "AsymmetricStereoTypes.h"
 #include "AsymmetricCameraComponent.generated.h"
 
 class FAsymmetricViewExtension;
@@ -47,6 +48,10 @@ public:
 	/** 渲染哪只眼（左 = -1，中 = 0，右 = 1） */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|Stereo", meta = (ClampMin = "-1.0", ClampMax = "1.0"))
 	float EyeOffset;
+
+	/** Stereo layout for MRQ rendering (None = mono, SBS = side-by-side, TB = top-bottom) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|Stereo")
+	EAsymmetricStereoLayout StereoLayout;
 
 	/** 自动调整视口比例匹配屏幕宽高比（防止画面拉伸）。
 	 *  CAVE/多屏系统里屏幕比例本身就对的话可以关掉。 */

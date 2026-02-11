@@ -10,6 +10,7 @@
 - **编辑器交互可视化** — 可直观拖拽调整屏幕位置、朝向和大小，实时预览视锥
 - **精细调试开关** — 屏幕边框、视锥线、眼球、近裁切面、标签均可独立开关
 - **立体渲染** — 内置眼间距，支持左眼/右眼立体输出
+- **MRQ 立体渲染** — 自定义渲染 Pass，同一帧渲染左右眼并自动合成 SBS/TB 视频（内置 FFmpeg）
 - **蓝图支持** — 所有参数均暴露给蓝图
 - **外部数据输入** — 支持导入 Max/Maya 标定数据，可引用场景 Actor 的 Transform
 - **MRQ 渲染支持** — 非对称投影支持离线渲染，可跟随 Sequencer 驱动的电影相机，完整支持运动模糊
@@ -41,6 +42,7 @@ AAsymmetricCameraActor
 | `FarClip` | 远裁切面距离，0 表示无限远 |
 | `EyeSeparation` | 立体渲染眼间距，0 为单目 |
 | `EyeOffset` | 左眼 -1 / 中心 0 / 右眼 1 |
+| `StereoLayout` | 立体布局模式：Mono / Side by Side / Top Bottom |
 | `bMatchViewportAspectRatio` | 自动匹配屏幕宽高比，防止画面拉伸 |
 | `bEnableMRQSupport` | MRQ 离线渲染时也应用非对称投影 |
 | `TrackedActor` | 追踪目标 Actor，用作眼睛位置 |
@@ -119,6 +121,55 @@ AAsymmetricCameraActor
 > **注意：**
 > - 运动模糊已完整支持 — 插件自动追踪前帧相机变换，确保速度缓冲区计算正确。
 > - MRQ 的高分辨率 tiling 渲染与非对称投影不兼容，建议将 tiling 设为 1×1。
+
+## MRQ 立体渲染
+
+插件提供 `Asymmetric Stereo Pass`，可在 MRQ 中渲染立体视频（Side-by-Side 或 Top-Bottom）。
+
+### 设置步骤
+
+1. 在 MRQ Job 的 **Render Pass** 中，移除默认的 "Deferred Rendering"，添加 **Asymmetric Stereo Pass**
+2. 配置参数：
+
+| 参数 | 说明 |
+| ---- | ---- |
+| `StereoLayout` | Side by Side（左右）或 Top / Bottom（上下） |
+| `EyeSeparation` | 眼间距，单位厘米，默认 6.4 |
+| `bSwapEyes` | 交换左右眼 |
+| `bAutoComposite` | 渲染完成后自动调用 FFmpeg 合成（默认开启） |
+| `FFmpegPath` | FFmpeg 路径，留空则使用插件内置的 FFmpeg（支持文件选择器） |
+| `VideoCodec` | 视频编码器：H.264 / H.265 / ProRes / VP9 / AV1 |
+| `CompositeQuality` | CRF 质量值（0=无损，18=推荐，51=最差） |
+| `OutputFormat` | 输出格式：MP4 / MOV / MKV / AVI |
+| `bDeleteSourceAfterComposite` | 合成成功后自动删除左右眼源图片序列 |
+
+3. 输出设置的文件名模板中包含 `{camera_name}`（自动填充 LeftEye / RightEye）
+4. 渲染完成后自动合成 SBS/TB 视频到输出目录
+
+### FFmpeg
+
+插件在 `ThirdParty/FFmpeg/Win64/` 下内置了 ffmpeg.exe。如果缺失，运行下载脚本：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "Plugins/AsymmetricCamera/ThirdParty/FFmpeg/download_ffmpeg.ps1"
+```
+
+也可以在 `FFmpegPath` 中手动指定系统上已安装的 FFmpeg 路径。
+
+## Git LFS
+
+本项目使用 Git LFS 管理大文件（如内置的 ffmpeg.exe）。克隆前请确保已安装 Git LFS：
+
+```bash
+git lfs install
+git clone <repo-url>
+```
+
+如果已克隆但未拉取 LFS 文件：
+
+```bash
+git lfs pull
+```
 
 ## 编译
 
