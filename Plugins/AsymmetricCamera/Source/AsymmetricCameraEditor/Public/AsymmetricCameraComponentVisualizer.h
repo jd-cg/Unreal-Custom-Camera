@@ -40,6 +40,7 @@ public:
 private:
 	void DrawFrustum(const UAsymmetricCameraComponent* CameraComponent, FPrimitiveDrawInterface* PDI) const;
 	void DrawScreenOutline(const UAsymmetricCameraComponent* CameraComponent, FPrimitiveDrawInterface* PDI) const;
+	void DrawStereoFrustums(const UAsymmetricCameraComponent* CameraComponent, FPrimitiveDrawInterface* PDI) const;
 
 	/** 眼睛手柄是否被选中 */
 	bool bEyeSelected;

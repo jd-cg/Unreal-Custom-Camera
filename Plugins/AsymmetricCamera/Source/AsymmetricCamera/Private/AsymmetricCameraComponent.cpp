@@ -21,6 +21,7 @@ UAsymmetricCameraComponent::UAsymmetricCameraComponent()
 	bShowNearPlane = true;
 	bShowLabels = true;
 	bShowDebugInGame = false;
+	bShowStereoFrustums = false;
 	bMatchViewportAspectRatio = true;
 	bEnableMRQSupport = true;
 	TrackedActor = nullptr;

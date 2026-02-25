@@ -153,8 +153,53 @@ void FAsymmetricCameraComponentVisualizer::DrawFrustum(
 			PDI->DrawLine(NearPC, NearPA, NearPlaneColor, DepthPriority, 1.0f);
 		}
 	}
+
+	// 双视锥立体预览
+	if (CameraComponent->bShowStereoFrustums && FMath::Abs(CameraComponent->EyeSeparation) > SMALL_NUMBER)
+	{
+		DrawStereoFrustums(CameraComponent, PDI);
+	}
 }
 
+void FAsymmetricCameraComponentVisualizer::DrawStereoFrustums(
+	const UAsymmetricCameraComponent* CameraComponent,
+	FPrimitiveDrawInterface* PDI) const
+{
+	if (!CameraComponent || (!CameraComponent->bUseExternalData && !CameraComponent->ScreenComponent))
+	{
+		return;
+	}
+
+	FVector PA, PB, PC, PD;
+	CameraComponent->GetEffectiveScreenCorners(PA, PB, PC, PD);
+
+	// Screen right direction — same as CalculateOffAxisProjection uses
+	const FVector VR = (PB - PA).GetSafeNormal();
+	const FVector BaseEye = CameraComponent->GetEyePosition();
+	const float HalfSep = CameraComponent->EyeSeparation * 0.5f;
+
+	const FVector LeftEye  = BaseEye + VR * (-HalfSep);
+	const FVector RightEye = BaseEye + VR * ( HalfSep);
+
+	const FLinearColor LeftColor  = FLinearColor::Cyan;
+	const FLinearColor RightColor = FLinearColor(1.0f, 0.0f, 1.0f);
+	const float Thickness = 1.0f;
+	const uint8 DepthPriority = SDPG_World;
+
+	// Left eye frustum lines (cyan)
+	PDI->DrawLine(LeftEye, PA, LeftColor, DepthPriority, Thickness);
+	PDI->DrawLine(LeftEye, PB, LeftColor, DepthPriority, Thickness);
+	PDI->DrawLine(LeftEye, PC, LeftColor, DepthPriority, Thickness);
+	PDI->DrawLine(LeftEye, PD, LeftColor, DepthPriority, Thickness);
+	DrawWireSphere(PDI, LeftEye, LeftColor, 5.0f, 12, SDPG_Foreground, Thickness);
+
+	// Right eye frustum lines (magenta)
+	PDI->DrawLine(RightEye, PA, RightColor, DepthPriority, Thickness);
+	PDI->DrawLine(RightEye, PB, RightColor, DepthPriority, Thickness);
+	PDI->DrawLine(RightEye, PC, RightColor, DepthPriority, Thickness);
+	PDI->DrawLine(RightEye, PD, RightColor, DepthPriority, Thickness);
+	DrawWireSphere(PDI, RightEye, RightColor, 5.0f, 12, SDPG_Foreground, Thickness);
+}
 bool FAsymmetricCameraComponentVisualizer::VisProxyHandleClick(
 	FEditorViewportClient* InViewportClient,
 	HComponentVisProxy* VisProxy,
@@ -286,11 +331,43 @@ void FAsymmetricCameraComponentVisualizer::DrawVisualizationHUD(
 		FVector2D CanvasPos;
 		if (WorldToCanvas(EyePosition, CanvasPos))
 		{
-			FCanvasTextItem TextItem(
-				FVector2D(CanvasPos.X + 8.0f, CanvasPos.Y - 12.0f),
-				FText::FromString(TEXT("Eye")), Font, FLinearColor::Yellow);
-			TextItem.EnableShadow(FLinearColor::Black);
-			Canvas->DrawItem(TextItem);
+			const bool bShowStereo = CameraComponent->bShowStereoFrustums
+				&& FMath::Abs(CameraComponent->EyeSeparation) > SMALL_NUMBER;
+
+			if (bShowStereo)
+			{
+				// 计算左右眼位置（与 DrawStereoFrustums 一致）
+				FVector PA2, PB2, PC2, PD2;
+				CameraComponent->GetEffectiveScreenCorners(PA2, PB2, PC2, PD2);
+				const FVector VR = (PB2 - PA2).GetSafeNormal();
+				const float HalfSep = CameraComponent->EyeSeparation * 0.5f;
+				const FVector LeftEye  = EyePosition + VR * (-HalfSep);
+				const FVector RightEye = EyePosition + VR * ( HalfSep);
+
+				FVector2D LeftPos, RightPos;
+				if (WorldToCanvas(LeftEye, LeftPos))
+				{
+					FCanvasTextItem LItem(FVector2D(LeftPos.X + 8.0f, LeftPos.Y - 12.0f),
+						FText::FromString(TEXT("L")), Font, FLinearColor::Cyan);
+					LItem.EnableShadow(FLinearColor::Black);
+					Canvas->DrawItem(LItem);
+				}
+				if (WorldToCanvas(RightEye, RightPos))
+				{
+					FCanvasTextItem RItem(FVector2D(RightPos.X + 8.0f, RightPos.Y - 12.0f),
+						FText::FromString(TEXT("R")), Font, FLinearColor(1.0f, 0.0f, 1.0f));
+					RItem.EnableShadow(FLinearColor::Black);
+					Canvas->DrawItem(RItem);
+				}
+			}
+			else
+			{
+				FCanvasTextItem TextItem(
+					FVector2D(CanvasPos.X + 8.0f, CanvasPos.Y - 12.0f),
+					FText::FromString(TEXT("Eye")), Font, FLinearColor::Yellow);
+				TextItem.EnableShadow(FLinearColor::Black);
+				Canvas->DrawItem(TextItem);
+			}
 		}
 	}
 

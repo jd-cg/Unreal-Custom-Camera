@@ -88,6 +88,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|Debug", meta = (EditCondition = "bShowDebugFrustum"))
 	bool bShowLabels;
 
+	/** 同时显示左眼（青色）和右眼（品红色）视锥，方便在编辑器里验证立体视差。需要 EyeSeparation > 0。 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|Debug", meta = (EditCondition = "bShowDebugFrustum"))
+	bool bShowStereoFrustums;
+
 	/** 运行时也显示调试可视化（DrawDebugLine） */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asymmetric Camera|Debug")
 	bool bShowDebugInGame;
