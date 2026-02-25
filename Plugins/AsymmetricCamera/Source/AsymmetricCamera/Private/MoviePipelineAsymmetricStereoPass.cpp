@@ -20,12 +20,9 @@ namespace
 	{
 		switch (InCodec)
 		{
-		case EFFmpegVideoCodec::H264:   return TEXT("libx264");
-		case EFFmpegVideoCodec::H265:   return TEXT("libx265");
-		case EFFmpegVideoCodec::ProRes: return TEXT("prores_ks");
-		case EFFmpegVideoCodec::VP9:    return TEXT("libvpx-vp9");
-		case EFFmpegVideoCodec::AV1:    return TEXT("libsvtav1");
-		default:                        return TEXT("libx264");
+		case EFFmpegVideoCodec::H264: return TEXT("libx264");
+		case EFFmpegVideoCodec::H265: return TEXT("libx265");
+		default:                      return TEXT("libx264");
 		}
 	}
 
@@ -43,24 +40,27 @@ namespace
 
 	FString GetFFmpegPixFmtForCodec(EFFmpegVideoCodec InCodec)
 	{
-		// ProRes uses yuv422p10le, others use yuv420p
-		return (InCodec == EFFmpegVideoCodec::ProRes) ? TEXT("yuv422p10le") : TEXT("yuv420p");
+		return TEXT("yuv420p");
 	}
 
 	FString GetFFmpegQualityArgs(EFFmpegVideoCodec InCodec, int32 InCRF)
 	{
+		return FString::Printf(TEXT("-crf %d"), InCRF);
+	}
+
+	FString GetFramePackingArgs(EFFmpegVideoCodec InCodec, EAsymmetricStereoLayout InLayout)
+	{
+		// H.264/H.265 Frame Packing Arrangement SEI: 3=side-by-side, 4=top-bottom
+		const int32 FramePackingType = (InLayout == EAsymmetricStereoLayout::SideBySide) ? 3 : 4;
+
 		switch (InCodec)
 		{
-		case EFFmpegVideoCodec::ProRes:
-			// ProRes uses -profile:v instead of -crf. Map CRF 0-51 to profile 0-5
-			{
-				int32 Profile = FMath::Clamp(InCRF * 5 / 51, 0, 5);
-				return FString::Printf(TEXT("-profile:v %d"), Profile);
-			}
-		case EFFmpegVideoCodec::VP9:
-			return FString::Printf(TEXT("-crf %d -b:v 0"), InCRF);
+		case EFFmpegVideoCodec::H264:
+			return FString::Printf(TEXT("-x264-params frame-packing=%d"), FramePackingType);
+		case EFFmpegVideoCodec::H265:
+			return FString::Printf(TEXT("-x265-params frame-packing=%d"), FramePackingType);
 		default:
-			return FString::Printf(TEXT("-crf %d"), InCRF);
+			return FString();
 		}
 	}
 }
@@ -415,16 +415,18 @@ void UMoviePipelineAsymmetricStereoPass::RunFFmpegComposite()
 		const FString Fmt = GetFFmpegFormatString(OutputFormat);
 		const FString PixFmt = GetFFmpegPixFmtForCodec(VideoCodec);
 		const FString QualityArgs = GetFFmpegQualityArgs(VideoCodec, CompositeQuality);
+		const FString FramePackingArgs = GetFramePackingArgs(VideoCodec, StereoLayout);
 		OutputPath = FPaths::Combine(OutputDir, FString::Printf(TEXT("stereo_%s.%s"), *LayoutName, *Fmt));
 
 		Args = FString::Printf(
-			TEXT("-y -framerate %d -i \"%s\" -framerate %d -i \"%s\" -filter_complex \"[0:v][1:v]%s=inputs=2\" -c:v %s %s -pix_fmt %s \"%s\""),
+			TEXT("-y -framerate %d -i \"%s\" -framerate %d -i \"%s\" -filter_complex \"[0:v][1:v]%s=inputs=2\" -c:v %s %s -pix_fmt %s %s \"%s\""),
 			FrameRate, *LeftInputPath,
 			FrameRate, *RightInputPath,
 			*FilterName,
 			*Codec,
 			*QualityArgs,
 			*PixFmt,
+			*FramePackingArgs,
 			*OutputPath
 		);
 	}

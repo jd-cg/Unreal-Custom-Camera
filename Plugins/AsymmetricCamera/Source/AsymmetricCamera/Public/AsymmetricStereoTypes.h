@@ -28,10 +28,7 @@ UENUM(BlueprintType)
 enum class EFFmpegVideoCodec : uint8
 {
 	H264        UMETA(DisplayName = "H.264 (libx264)"),
-	H265        UMETA(DisplayName = "H.265 (libx265)"),
-	ProRes      UMETA(DisplayName = "ProRes (prores_ks)"),
-	VP9         UMETA(DisplayName = "VP9 (libvpx-vp9)"),
-	AV1         UMETA(DisplayName = "AV1 (libsvtav1)")
+	H265        UMETA(DisplayName = "H.265 (libx265)")
 };
 
 /** FFmpeg output container format */
