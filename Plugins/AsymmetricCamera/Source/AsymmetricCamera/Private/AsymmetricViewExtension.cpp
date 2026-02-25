@@ -132,7 +132,11 @@ void FAsymmetricViewExtension::SetupView(FSceneViewFamily& InViewFamily, FSceneV
 		return;
 	}
 
-	FVector EyePosition = CameraComponent->GetEyePosition();
+	// Use the view's already-set location so stereo eye offsets applied by
+	// MoviePipelineAsymmetricStereoPass::GetCameraInfo are respected.
+	// Falling back to the component center would produce identical projections
+	// for both eyes (no parallax).
+	FVector EyePosition = InView.ViewLocation;
 	FRotator ViewRotation;
 	FMatrix ProjectionMatrix;
 
