@@ -145,17 +145,33 @@ void FAsymmetricViewExtension::SetupView(FSceneViewFamily& InViewFamily, FSceneV
 		return;
 	}
 
+	// Determine which eye this is (0=left/mono, 1=right) so each eye maintains its own
+	// previous-frame data. Without per-eye tracking, the second eye to render each frame
+	// would read the first eye's current-frame position as its "previous" transform,
+	// producing incorrect motion blur vectors for one eye.
+	int32 EyeIdx = 0;
+	if (CameraComponent->EyeSeparation > SMALL_NUMBER)
+	{
+		FVector ScreenBL, ScreenBR, ScreenTL, ScreenTR;
+		CameraComponent->GetEffectiveScreenCorners(ScreenBL, ScreenBR, ScreenTL, ScreenTR);
+		const FVector ScreenRight = (ScreenBR - ScreenBL).GetSafeNormal();
+		const FVector BaseEyePos = CameraComponent->GetEyePosition();
+		const float Side = FVector::DotProduct(EyePosition - BaseEyePos, ScreenRight);
+		EyeIdx = (Side >= 0.0f) ? 1 : 0;
+	}
+
 	// Set previous frame transform for motion blur support.
 	// On the first frame we use current data (no motion blur for frame 0).
-	if (bHasPreviousViewData)
+	FPerEyePreviousData& PrevData = PrevDataPerEye[EyeIdx];
+	if (PrevData.bHasData)
 	{
-		InView.PreviousViewTransform = FTransform(PrevViewRotation.Quaternion(), PrevEyePosition);
+		InView.PreviousViewTransform = FTransform(PrevData.ViewRotation.Quaternion(), PrevData.EyePosition);
 	}
 
 	// Cache current frame data for next frame
-	PrevEyePosition = EyePosition;
-	PrevViewRotation = ViewRotation;
-	bHasPreviousViewData = true;
+	PrevData.EyePosition = EyePosition;
+	PrevData.ViewRotation = ViewRotation;
+	PrevData.bHasData = true;
 
 	InView.UpdateProjectionMatrix(ProjectionMatrix);
 

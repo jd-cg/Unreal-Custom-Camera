@@ -25,8 +25,14 @@ public:
 private:
 	TWeakObjectPtr<UAsymmetricCameraComponent> CameraComponent;
 
-	// Previous frame data for motion blur
-	bool bHasPreviousViewData = false;
-	FVector PrevEyePosition = FVector::ZeroVector;
-	FRotator PrevViewRotation = FRotator::ZeroRotator;
+	// Previous frame data for motion blur - stored per eye to support stereo rendering.
+	// Index 0 = left eye (or mono), index 1 = right eye.
+	// Using a fixed 2-element array avoids heap allocation and covers all cases.
+	struct FPerEyePreviousData
+	{
+		bool bHasData = false;
+		FVector EyePosition = FVector::ZeroVector;
+		FRotator ViewRotation = FRotator::ZeroRotator;
+	};
+	FPerEyePreviousData PrevDataPerEye[2];
 };
