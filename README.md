@@ -152,6 +152,16 @@ AAsymmetricCameraActor
 | `Override Anti Aliasing` | 不勾选 | 勾选 | 强制覆盖渲染器 AA 设置 |
 | `Anti Aliasing Method` | — | `None` | MRQ 自行做时间累积，禁用引擎内置 AA 避免重叠模糊 |
 
+### 1b. MRQ Console Variables 设置
+
+在 MRQ Job 的设置列表中添加 **Console Variables** 设置项，添加以下变量：
+
+| 控制台变量 | 值 | 说明 |
+| ---------- | -- | ---- |
+| `r.MotionBlurQuality` | `4` | 运动模糊渲染质量，0 = 关闭，4 = 最高质量。MRQ 离线渲染某些配置下会将此值重置为 0，必须显式设置 |
+
+> 如果不添加此变量，运动模糊可能在 MRQ 渲染中完全不出现，即使 Post Process Volume 和时间采样都已正确配置。
+
 ### 2. Post Process Volume 运动模糊
 
 由于 AsymmetricCamera 通过 `ISceneViewExtension` 覆盖相机投影，后处理设置应通过**场景中的 Post Process Volume** 来配置（对任何相机视图可靠生效），而非 CineCameraActor 上的后处理。

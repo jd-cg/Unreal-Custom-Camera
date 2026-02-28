@@ -152,6 +152,16 @@ Add an **Anti-Aliasing** setting to the MRQ Job:
 | `Override Anti Aliasing` | Unchecked | Checked | Force override the renderer's AA setting |
 | `Anti Aliasing Method` | — | `None` | MRQ accumulates frames itself; disable engine AA to avoid double-blurring |
 
+### 1b. MRQ Console Variables Setting
+
+Add a **Console Variables** setting to the MRQ Job and include the following:
+
+| Console Variable | Value | Description |
+| ---------------- | ----- | ----------- |
+| `r.MotionBlurQuality` | `4` | Motion blur render quality: 0 = off, 4 = maximum. Some MRQ configurations reset this to 0 at runtime — set it explicitly to ensure motion blur is active |
+
+> Without this variable, motion blur may not appear in MRQ renders at all, even if the Post Process Volume and temporal sample count are correctly configured.
+
 ### 2. Post Process Volume Motion Blur
 
 Because AsymmetricCamera overrides the camera projection via `ISceneViewExtension`, motion blur should be configured through a **Post Process Volume in the scene** rather than on the CineCameraActor — a PPV applies reliably to any camera view.
