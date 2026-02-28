@@ -137,6 +137,39 @@ Implements Robert Kooima's **Generalized Perspective Projection** algorithm:
 > - Motion blur is fully supported — the plugin tracks previous-frame camera transforms independently per eye to ensure correct velocity buffer calculation.
 > - MRQ high-resolution tiling is not compatible with asymmetric projection. Set tiling to 1×1.
 
+## MRQ Motion Blur Setup
+
+Motion blur requires three things to work together:
+
+### 1. MRQ Anti-Aliasing Settings
+
+Add an **Anti-Aliasing** setting to the MRQ Job:
+
+| Parameter | Recommended | Description |
+| --------- | ----------- | ----------- |
+| `Temporal Sample Count` | 8 – 32 | Number of temporal samples; higher = smoother motion blur |
+| `Spatial Sample Count` | 1 | Keep at 1 in most cases |
+| `Override Anti Aliasing` | Checked | Force override the renderer's AA setting |
+| `Anti Aliasing Method` | `None` | MRQ accumulates frames itself; disable engine AA to avoid double-blurring |
+
+### 2. Camera / Post Process Motion Blur
+
+Enable motion blur on the `CineCameraActor` or a Post Process Volume in the scene:
+
+| Parameter | Recommended | Description |
+| --------- | ----------- | ----------- |
+| Motion Blur → **Amount** | 0.5 (default) | Blur strength; 0 = disabled |
+| Motion Blur → **Max** | 5.0 (default) | Maximum blur distance (% of screen) |
+| Motion Blur → **Target FPS** | 0 | 0 = automatically derived from output frame rate |
+
+> If Amount is 0 or Motion Blur is disabled in the post process settings, MRQ temporal samples will not produce any motion blur.
+
+### 3. Plugin Side (No Extra Configuration Needed)
+
+The plugin automatically writes `InView.PreviousViewTransform` in `SetupView()` each frame, providing the correct previous-frame camera transform for the velocity buffer. No additional plugin parameters need to be set.
+
+> **Note:** The **first frame** of a sequence will have no motion blur (no previous frame data is available). This is an inherent limitation of offline rendering.
+
 ## MRQ Stereo Rendering
 
 The plugin provides an `Asymmetric Stereo Pass` for rendering stereo video (Side-by-Side or Top-Bottom) via MRQ.
