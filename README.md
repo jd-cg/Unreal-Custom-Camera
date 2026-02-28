@@ -10,10 +10,10 @@
 - **编辑器交互可视化** — 可直观拖拽调整屏幕位置、朝向和大小，实时预览视锥
 - **精细调试开关** — 屏幕边框、视锥线、眼球、近裁切面、标签均可独立开关
 - **立体渲染** — 内置眼间距，支持左眼/右眼立体输出
-- **MRQ 立体渲染** — 自定义渲染 Pass，同一帧渲染左右眼并自动合成 SBS/TB 视频（内置 FFmpeg）
+- **MRQ 立体渲染** — 自定义渲染 Pass，同一帧渲染左右眼并自动合成 SBS/TB 视频或图片序列（内置 FFmpeg）
 - **蓝图支持** — 所有参数均暴露给蓝图
 - **外部数据输入** — 支持导入 Max/Maya 标定数据，可引用场景 Actor 的 Transform
-- **MRQ 渲染支持** — 非对称投影支持离线渲染，可跟随 Sequencer 驱动的电影相机，完整支持运动模糊
+- **MRQ 渲染支持** — 非对称投影支持离线渲染，可跟随 Sequencer 驱动的电影相机，完整支持运动模糊（每眼独立追踪）
 
 ## 快速开始
 
@@ -94,6 +94,8 @@ AAsymmetricCameraActor
 
 ## 蓝图 API
 
+### AsymmetricCameraComponent — 蓝图函数
+
 | 函数 | 说明 |
 | ---- | ---- |
 | `GetEyePosition()` | 获取当前生效的眼睛世界坐标（优先级：ExternalEyeActor > ExternalEyePosition > TrackedActor > 组件自身位置） |
@@ -101,15 +103,26 @@ AAsymmetricCameraActor
 | `SetExternalData(Eye, BL, BR, TL, TR)` | 一次性设置全部外部数据 |
 | `CalculateOffAxisProjection()` | 手动计算离轴投影矩阵和视图旋转矩阵 |
 
+### AsymmetricScreenComponent — 蓝图函数
+
+| 函数 | 说明 |
+| ---- | ---- |
+| `GetScreenSize()` | 获取屏幕尺寸，返回 `FVector2D(ScreenWidth, ScreenHeight)` |
+| `SetScreenSize(NewSize)` | 设置屏幕尺寸（世界单位） |
+| `GetScreenCornersWorld(BL, BR, TL, TR)` | 获取屏幕四角的世界坐标（左下、右下、左上、右上） |
+| `GetScreenCornersLocal(BL, BR, TL, TR)` | 获取屏幕四角在 Actor 局部空间的坐标 |
+
 ## 工作原理
 
 基于 Robert Kooima 的 **广义透视投影 (Generalized Perspective Projection)** 算法：
 
 1. `BeginPlay` 时，`UAsymmetricCameraComponent` 注册 `FAsymmetricViewExtension`（`FWorldSceneViewExtension`）
-2. 每帧 UE5 调用扩展的 `SetupViewProjectionMatrix()`
+2. 每帧 UE5 调用扩展的 `SetupViewProjectionMatrix()` — 适用于游戏运行时
 3. 扩展计算离轴投影矩阵（UE5 reversed-Z 格式）和屏幕对齐的视图旋转矩阵
 4. 两者写入 `FSceneViewProjectionData`，直接覆盖玩家相机 — 无 RT、无 SceneCapture、无额外渲染 Pass
-5. MRQ 离线渲染时，扩展在 `SetupView()` 中覆盖投影（因为 MRQ 不调用 `SetupViewProjectionMatrix`）
+5. MRQ 离线渲染时，扩展在 `SetupView()` 中覆盖投影（MRQ 不调用 `SetupViewProjectionMatrix`）；此路径使用 `InView.ViewLocation` 作为眼睛位置，以正确尊重 `MoviePipelineAsymmetricStereoPass` 已应用的左右眼偏移
+
+**运动模糊：** 每眼独立维护上一帧的眼睛位置和视图旋转，避免立体渲染时两眼互相污染运动向量缓冲区。
 
 ## MRQ 渲染工作流
 
@@ -120,7 +133,8 @@ AAsymmetricCameraActor
 5. 使用 Movie Render Queue 渲染 — 输出使用非对称投影，动画由 CineCameraActor 驱动
 
 > **注意：**
-> - 运动模糊已完整支持 — 插件自动追踪前帧相机变换，确保速度缓冲区计算正确。
+>
+> - 运动模糊已完整支持 — 插件对每只眼独立追踪前帧相机变换，确保速度缓冲区计算正确。
 > - MRQ 的高分辨率 tiling 渲染与非对称投影不兼容，建议将 tiling 设为 1×1。
 
 ## MRQ 立体渲染
@@ -132,7 +146,7 @@ AAsymmetricCameraActor
 1. 在 MRQ Job 的 **Render Pass** 中，移除默认的 "Deferred Rendering"，添加 **Asymmetric Stereo Pass**
 2. 配置参数（见下表）
 3. 输出设置的文件名模板中包含 `{camera_name}`（自动填充 LeftEye / RightEye）
-4. 渲染完成后自动合成 SBS/TB 视频到输出目录
+4. 渲染完成后，插件根据 `CompositeMode` 设置自动合成 SBS/TB 图片序列或视频（默认为 `Image Sequence`）
 
 **Pass 参数：**
 
@@ -141,17 +155,25 @@ AAsymmetricCameraActor
 | `StereoLayout` | Side by Side（左右）或 Top / Bottom（上下） |
 | `EyeSeparation` | 眼间距，单位厘米，默认 6.4 |
 | `bSwapEyes` | 交换左右眼 |
-| `CompositeMode` | 合成模式：`Disabled`（保留分离序列）/ `ImageSequence`（每帧合并图片）/ `Video`（合并视频） |
+| `CompositeMode` | 合成模式：`Disabled`（保留分离序列）/ `Image Sequence`（每帧合并图片，**默认**）/ `Video`（合并视频） |
 | `FFmpegPath` | FFmpeg 路径，留空则使用插件内置的 FFmpeg（支持文件选择器） |
-| `VideoCodec` | 视频编码器：H.264 / H.265 |
-| `CompositeQuality` | CRF 质量值（0=无损，18=推荐，51=最差） |
-| `OutputFormat` | 输出格式：MP4 / MOV / MKV / AVI（H.265 强制使用 MKV） |
-| `bDeleteSourceAfterComposite` | 合成成功后自动删除左右眼源图片序列 |
+| `VideoCodec` | 视频编码器：H.264 / H.265（仅 `Video` 模式有效） |
+| `CompositeQuality` | CRF 质量值（0=无损，18=推荐，51=最差，仅 `Video` 模式有效） |
+| `OutputFormat` | 输出格式：MP4 / MOV / MKV / AVI（H.265 强制使用 MKV，仅 `Video` 模式有效） |
+| `bDeleteSourceAfterComposite` | 合成成功后自动删除左右眼源图片序列（默认开启） |
 
-> **立体 3D 元数据：**
+> **立体 3D 元数据（`Video` 模式）：**
 >
 > - H.264 输出在码流中嵌入 Frame Packing Arrangement SEI（type 3=SBS / type 4=TB），VLC、PotPlayer 等播放器可自动识别。
 > - H.265 输出强制使用 MKV 容器，通过 `stereo_mode` 容器元数据标记立体格式（x265 不支持 frame-packing CLI 参数）。
+
+### 合成输出命名规则
+
+| 模式 | 输出文件名示例 |
+| ---- | ---- |
+| `Image Sequence` | `stereo_SBS.0000.jpeg`、`stereo_TB.0000.png` |
+| `Video` (SBS) | `stereo_SBS.mp4` |
+| `Video` (TB) | `stereo_TB.mkv`（H.265） |
 
 ### FFmpeg
 

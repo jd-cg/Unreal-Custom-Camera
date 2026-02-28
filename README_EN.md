@@ -10,10 +10,10 @@ An off-axis / asymmetric frustum projection plugin for **Unreal Engine 5.4**, de
 - **Interactive editor visualization** — drag to adjust screen position, orientation, and size with real-time frustum preview
 - **Granular debug toggles** — screen outline, frustum lines, eye handle, near plane, and labels can be toggled independently
 - **Stereoscopic rendering** — built-in eye separation for stereo left/right eye output
-- **MRQ stereo rendering** — custom render pass that renders both eyes per frame and auto-composites SBS/TB video (bundled FFmpeg)
+- **MRQ stereo rendering** — custom render pass that renders both eyes per frame and auto-composites SBS/TB image sequences or video (bundled FFmpeg)
 - **Blueprint support** — all parameters exposed to Blueprint
 - **External data input** — supports importing calibration data from Max/Maya and referencing scene Actor transforms
-- **MRQ (Movie Render Queue) support** — asymmetric projection works with offline rendering; can follow a CineCameraActor driven by Sequencer; motion blur is fully supported
+- **MRQ (Movie Render Queue) support** — asymmetric projection works with offline rendering; can follow a CineCameraActor driven by Sequencer; motion blur is fully supported with per-eye transform tracking
 
 ## Quick Start
 
@@ -94,6 +94,8 @@ The screen plane lies on the component's local YZ plane with the normal along +X
 
 ## Blueprint API
 
+### AsymmetricCameraComponent — Blueprint Functions
+
 | Function | Description |
 | -------- | ----------- |
 | `GetEyePosition()` | Returns the effective eye world position (priority: ExternalEyeActor > ExternalEyePosition > TrackedActor > component location) |
@@ -101,15 +103,26 @@ The screen plane lies on the component's local YZ plane with the normal along +X
 | `SetExternalData(Eye, BL, BR, TL, TR)` | Set all external data points at once |
 | `CalculateOffAxisProjection()` | Manually compute the off-axis projection matrix and view rotation |
 
+### AsymmetricScreenComponent — Blueprint Functions
+
+| Function | Description |
+| -------- | ----------- |
+| `GetScreenSize()` | Returns screen size as `FVector2D(ScreenWidth, ScreenHeight)` |
+| `SetScreenSize(NewSize)` | Sets screen size in world units |
+| `GetScreenCornersWorld(BL, BR, TL, TR)` | Returns the four screen corners in world space (bottom-left, bottom-right, top-left, top-right) |
+| `GetScreenCornersLocal(BL, BR, TL, TR)` | Returns the four screen corners in the owner Actor's local space |
+
 ## How It Works
 
 Implements Robert Kooima's **Generalized Perspective Projection** algorithm:
 
 1. On `BeginPlay`, `UAsymmetricCameraComponent` registers an `FAsymmetricViewExtension` (`FWorldSceneViewExtension`)
-2. Each frame, UE5 calls `SetupViewProjectionMatrix()` on the extension
+2. Each frame, UE5 calls `SetupViewProjectionMatrix()` on the extension — used during gameplay
 3. The extension computes the off-axis projection matrix (UE5 reversed-Z format) and screen-aligned view rotation matrix
 4. Both are written into `FSceneViewProjectionData`, directly overriding the player camera — no RT, no SceneCapture, no extra rendering pass
-5. For MRQ offline rendering, the extension also overrides the projection in `SetupView()` (since MRQ does not call `SetupViewProjectionMatrix`)
+5. For MRQ offline rendering, the extension overrides the projection in `SetupView()` (since MRQ does not call `SetupViewProjectionMatrix`); this path uses `InView.ViewLocation` as the eye position so that eye offsets already applied by `MoviePipelineAsymmetricStereoPass` are correctly respected
+
+**Motion blur:** Each eye maintains its own previous-frame eye position and view rotation, preventing the two eyes from contaminating each other's velocity buffer during stereo rendering.
 
 ## MRQ Rendering Workflow
 
@@ -121,7 +134,7 @@ Implements Robert Kooima's **Generalized Perspective Projection** algorithm:
 
 > **Note:**
 >
-> - Motion blur is fully supported — the plugin automatically tracks previous-frame camera transforms for correct velocity buffer calculation.
+> - Motion blur is fully supported — the plugin tracks previous-frame camera transforms independently per eye to ensure correct velocity buffer calculation.
 > - MRQ high-resolution tiling is not compatible with asymmetric projection. Set tiling to 1×1.
 
 ## MRQ Stereo Rendering
@@ -133,26 +146,34 @@ The plugin provides an `Asymmetric Stereo Pass` for rendering stereo video (Side
 1. In the MRQ Job's **Render Pass** section, remove the default "Deferred Rendering" and add **Asymmetric Stereo Pass**
 2. Configure the pass parameters (see table below)
 3. Include `{camera_name}` in the output filename template (auto-filled with LeftEye / RightEye)
-4. After rendering, the plugin automatically composites SBS/TB video into the output directory
+4. After rendering, the plugin automatically composites SBS/TB output according to `CompositeMode` — image sequence or video (default: `Image Sequence`)
 
 **Pass parameters:**
 
 | Parameter | Description |
 | --------- | ----------- |
-| `StereoLayout` | Side by Side (LR) or Top / Bottom (LR) |
+| `StereoLayout` | Side by Side (LR) or Top / Bottom (TB) |
 | `EyeSeparation` | Inter-ocular distance in centimeters (default 6.4) |
 | `bSwapEyes` | Swap left and right eye output |
-| `CompositeMode` | Composite mode: `Disabled` (keep separate sequences) / `ImageSequence` (one merged image per frame) / `Video` (merged video file) |
+| `CompositeMode` | `Disabled` (keep separate sequences) / `Image Sequence` (one merged image per frame, **default**) / `Video` (merged video file) |
 | `FFmpegPath` | Path to FFmpeg executable; leave empty to use the bundled one (file picker supported) |
-| `VideoCodec` | Video encoder: H.264 / H.265 |
-| `CompositeQuality` | CRF quality value (0=lossless, 18=recommended, 51=worst) |
-| `OutputFormat` | Output format: MP4 / MOV / MKV / AVI (H.265 forces MKV) |
-| `bDeleteSourceAfterComposite` | Auto-delete left/right eye source sequences after successful composite |
+| `VideoCodec` | Video encoder: H.264 / H.265 (`Video` mode only) |
+| `CompositeQuality` | CRF quality value: 0=lossless, 18=recommended, 51=worst (`Video` mode only) |
+| `OutputFormat` | Output format: MP4 / MOV / MKV / AVI; H.265 forces MKV (`Video` mode only) |
+| `bDeleteSourceAfterComposite` | Auto-delete left/right eye source sequences after successful composite (default: on) |
 
-> **Stereo 3D metadata:**
+> **Stereo 3D metadata (`Video` mode):**
 >
 > - H.264 output embeds a Frame Packing Arrangement SEI in the bitstream (type 3=SBS / type 4=TB), recognized automatically by VLC, PotPlayer, etc.
 > - H.265 output forces MKV container and uses `stereo_mode` container metadata (x265 has no frame-packing CLI parameter).
+
+### Composite Output Naming
+
+| Mode | Example output filename |
+| ---- | ----------------------- |
+| `Image Sequence` | `stereo_SBS.0000.jpeg`, `stereo_TB.0000.png` |
+| `Video` (SBS) | `stereo_SBS.mp4` |
+| `Video` (TB) | `stereo_TB.mkv` (H.265) |
 
 ### FFmpeg
 
