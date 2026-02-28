@@ -139,30 +139,37 @@ Implements Robert Kooima's **Generalized Perspective Projection** algorithm:
 
 ## MRQ Motion Blur Setup
 
-Motion blur requires three things to work together:
+Motion blur requires three things to work together.
 
 ### 1. MRQ Anti-Aliasing Settings
 
 Add an **Anti-Aliasing** setting to the MRQ Job:
 
-| Parameter | Recommended | Description |
-| --------- | ----------- | ----------- |
-| `Temporal Sample Count` | 8 – 32 | Number of temporal samples; higher = smoother motion blur |
-| `Spatial Sample Count` | 1 | Keep at 1 in most cases |
-| `Override Anti Aliasing` | Checked | Force override the renderer's AA setting |
-| `Anti Aliasing Method` | `None` | MRQ accumulates frames itself; disable engine AA to avoid double-blurring |
+| Parameter | Default | Recommended | Description |
+| --------- | ------- | ----------- | ----------- |
+| `Temporal Sample Count` | 1 | 8 – 32 | **Must be > 1 to produce motion blur**; higher = smoother |
+| `Spatial Sample Count` | 1 | 1 | Keep at default |
+| `Override Anti Aliasing` | Unchecked | Checked | Force override the renderer's AA setting |
+| `Anti Aliasing Method` | — | `None` | MRQ accumulates frames itself; disable engine AA to avoid double-blurring |
 
-### 2. Camera / Post Process Motion Blur
+### 2. Post Process Volume Motion Blur
 
-Enable motion blur on the `CineCameraActor` or a Post Process Volume in the scene:
+Because AsymmetricCamera overrides the camera projection via `ISceneViewExtension`, motion blur should be configured through a **Post Process Volume in the scene** rather than on the CineCameraActor — a PPV applies reliably to any camera view.
 
-| Parameter | Recommended | Description |
-| --------- | ----------- | ----------- |
-| Motion Blur → **Amount** | 0.5 (default) | Blur strength; 0 = disabled |
-| Motion Blur → **Max** | 5.0 (default) | Maximum blur distance (% of screen) |
-| Motion Blur → **Target FPS** | 0 | 0 = automatically derived from output frame rate |
+**Steps:**
 
-> If Amount is 0 or Motion Blur is disabled in the post process settings, MRQ temporal samples will not produce any motion blur.
+1. Place a **Post Process Volume** in the scene (Place Actors → Volumes → Post Process Volume)
+2. In Details, check **Infinite Extent (Unbound)** to cover the whole scene
+3. Expand **Rendering Features** → **Motion Blur**
+4. **Check the checkbox next to each parameter** before setting its value (unchecked = no override, the value is ignored)
+
+| Parameter | Default | Recommended | Description |
+| --------- | ------- | ----------- | ----------- |
+| Motion Blur → **Amount** ✅ | 0.5 | 0.5 | Blur strength; **must be > 0** |
+| Motion Blur → **Max** ✅ | 5.0 | 5.0 | Maximum blur distance (% of screen) |
+| Motion Blur → **Target FPS** ✅ | 0 | 0 | 0 = derived automatically from output frame rate |
+
+> If the Amount checkbox is unchecked or its value is 0, MRQ temporal samples will not produce any motion blur.
 
 ### 3. Plugin Side (No Extra Configuration Needed)
 

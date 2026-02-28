@@ -139,34 +139,41 @@ AAsymmetricCameraActor
 
 ## MRQ 运动模糊设置
 
-运动模糊需要三方面配合：
+运动模糊需要三方面配合。
 
 ### 1. MRQ Anti-Aliasing 设置
 
 在 MRQ Job 的设置列表中添加 **Anti-Aliasing** 设置项：
 
-| 参数 | 推荐值 | 说明 |
-| ---- | ------ | ---- |
-| `Temporal Sample Count` | 8 ～ 32 | 时间采样数，决定运动模糊的采样质量，越高越平滑 |
-| `Spatial Sample Count` | 1 | 空间采样，通常保持 1 |
-| `Override Anti Aliasing` | 勾选 | 强制覆盖渲染器 AA 设置 |
-| `Anti Aliasing Method` | `None` | MRQ 自行做时间累积，禁用引擎内置 AA 避免重叠 |
+| 参数 | 默认值 | 推荐值 | 说明 |
+| ---- | ------ | ------ | ---- |
+| `Temporal Sample Count` | 1 | 8 ～ 32 | 时间采样数，**必须 > 1 才会产生运动模糊**，越高越平滑 |
+| `Spatial Sample Count` | 1 | 1 | 空间采样，通常保持默认 |
+| `Override Anti Aliasing` | 不勾选 | 勾选 | 强制覆盖渲染器 AA 设置 |
+| `Anti Aliasing Method` | — | `None` | MRQ 自行做时间累积，禁用引擎内置 AA 避免重叠模糊 |
 
-### 2. 相机 / 后处理运动模糊
+### 2. Post Process Volume 运动模糊
 
-在 CineCameraActor 或场景中的 Post Process Volume 上启用运动模糊：
+由于 AsymmetricCamera 通过 `ISceneViewExtension` 覆盖相机投影，后处理设置应通过**场景中的 Post Process Volume** 来配置（对任何相机视图可靠生效），而非 CineCameraActor 上的后处理。
 
-| 参数 | 推荐值 | 说明 |
-| ---- | ------ | ---- |
-| Motion Blur → **Amount** | 0.5（默认） | 模糊强度，0 = 关闭 |
-| Motion Blur → **Max** | 5.0（默认） | 最大模糊距离（屏幕百分比） |
-| Motion Blur → **Target FPS** | 0 | 0 = 跟随输出帧率自动计算快门时间 |
+**设置步骤：**
 
-> 如果 Amount 为 0 或后处理里勾选了 "Motion Blur Off"，MRQ 即使有时间采样也不会产生运动模糊。
+1. 在场景中放置 **Post Process Volume**（菜单 Place Actors → Volumes → Post Process Volume）
+2. Details 面板 → 勾选 **Infinite Extent (Unbound)**（覆盖整个场景）
+3. 展开 **Rendering Features** → **Motion Blur**
+4. **勾选每个参数左侧的复选框**，然后填入数值（不勾选 = 不覆盖，填的数值不生效）
+
+| 参数 | 默认值 | 推荐值 | 说明 |
+| ---- | ------ | ------ | ---- |
+| Motion Blur → **Amount** ✅ | 0.5 | 0.5 | 模糊强度，0 = 关闭，**必须 > 0** |
+| Motion Blur → **Max** ✅ | 5.0 | 5.0 | 最大模糊距离（屏幕百分比） |
+| Motion Blur → **Target FPS** ✅ | 0 | 0 | 0 = 跟随输出帧率自动计算快门时间 |
+
+> 如果 Amount 复选框未勾选或值为 0，MRQ 即使有时间采样也不会产生运动模糊。
 
 ### 3. 插件侧（无需额外配置）
 
-插件在 `SetupView()` 中自动为每帧写入 `InView.PreviousViewTransform`，提供正确的前帧相机变换供速度缓冲区计算使用。无需任何额外的插件参数配置。
+插件在 `SetupView()` 中自动为每帧写入 `InView.PreviousViewTransform`，提供正确的前帧相机变换供速度缓冲区计算。无需额外的插件参数配置。
 
 > **注意：** 序列的**第一帧**没有运动模糊（无前帧数据可用），这是 MRQ 离线渲染的固有限制。
 
