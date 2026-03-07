@@ -2,7 +2,7 @@
 
 **[中文文档](README.md)**
 
-An off-axis / asymmetric frustum projection plugin for **Unreal Engine 5.4**, designed for CAVE systems, projection mapping, multi-display setups, and head-tracked displays.
+An off-axis / asymmetric frustum projection plugin for **Unreal Engine 5.4 / 5.5 / 5.6**, designed for CAVE systems, projection mapping, multi-display setups, and head-tracked displays.
 
 ## Features
 
@@ -266,11 +266,14 @@ git lfs pull
 ## Build
 
 ```bash
-# Quick build (auto-detects UE5 path)
+# Quick build (auto-detects UE5 path, supports 5.4 / 5.5 / 5.6)
 QuickBuild.bat
 
-# If QuickBuild fails, open the project directly in Unreal Editor
-# and compile from there (Ctrl+Alt+F11)
+# If QuickBuild cannot find your engine installation, open the script
+# in a text editor and set UE5_PATH manually:
+#   set "UE5_PATH=C:\Your\Path\To\UE_5.X"
+
+# Alternatively, open the project in Unreal Editor and compile there (Ctrl+Alt+F11)
 start "" "MyCustomCam.uproject"
 ```
 

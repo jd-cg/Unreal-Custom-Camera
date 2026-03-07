@@ -9,8 +9,8 @@ REM ============================================
 REM Configuration
 REM ============================================
 
-REM Set your Unreal Engine 5.4 installation path here
-REM If not set, script will try to auto-detect
+REM Set your Unreal Engine installation path here (leave empty to auto-detect)
+REM Example: set "UE5_PATH=D:\Ue\UE\UE_5.6"
 set "UE5_PATH="
 
 REM Project configuration
@@ -21,31 +21,48 @@ set "PLUGIN_NAME=AsymmetricCamera"
 set "PLUGIN_PATH=%PROJECT_ROOT%Plugins\%PLUGIN_NAME%"
 
 REM ============================================
-REM Auto-detect UE5 Path
+REM Auto-detect UE5 Path (5.4 / 5.5 / 5.6)
 REM ============================================
 
 if "%UE5_PATH%"=="" (
-    echo Attempting to auto-detect Unreal Engine 5.4 installation...
+    echo Attempting to auto-detect Unreal Engine installation...
 
-    REM Common installation paths
-    if exist "D:\Ue\UE\UE_5.4\Engine\Build\BatchFiles\Build.bat" (
-        set "UE5_PATH=D:\Ue\UE\UE_5.4"
-        echo Found UE5.4 at: !UE5_PATH!
-    ) else if exist "C:\Program Files\Epic Games\UE_5.4\Engine\Build\BatchFiles\Build.bat" (
-        set "UE5_PATH=C:\Program Files\Epic Games\UE_5.4"
-        echo Found UE5.4 at: !UE5_PATH!
-    ) else if exist "D:\Epic Games\UE_5.4\Engine\Build\BatchFiles\Build.bat" (
-        set "UE5_PATH=D:\Epic Games\UE_5.4"
-        echo Found UE5.4 at: !UE5_PATH!
-    ) else if exist "C:\Epic Games\UE_5.4\Engine\Build\BatchFiles\Build.bat" (
-        set "UE5_PATH=C:\Epic Games\UE_5.4"
-        echo Found UE5.4 at: !UE5_PATH!
-    ) else (
-        echo ERROR: Could not auto-detect Unreal Engine 5.4 installation
-        echo Please set UE5_PATH variable in this script
-        pause
-        exit /b 1
+    for %%V in (5.6 5.5 5.4) do (
+        if "!UE5_PATH!"=="" (
+            for %%D in (
+                "D:\Ue\UE\UE_%%V"
+                "C:\Program Files\Epic Games\UE_%%V"
+                "D:\Epic Games\UE_%%V"
+                "C:\Epic Games\UE_%%V"
+                "E:\Epic Games\UE_%%V"
+            ) do (
+                if "!UE5_PATH!"=="" (
+                    if exist "%%~D\Engine\Build\BatchFiles\Build.bat" (
+                        set "UE5_PATH=%%~D"
+                        echo Found UE %%V at: %%~D
+                    )
+                )
+            )
+        )
     )
+)
+
+if "%UE5_PATH%"=="" (
+    echo.
+    echo ERROR: Could not auto-detect Unreal Engine 5.4 / 5.5 / 5.6 installation.
+    echo.
+    echo Please open this script in a text editor and set UE5_PATH manually:
+    echo   set "UE5_PATH=C:\Your\Path\To\UE_5.X"
+    echo.
+    echo Checked directories:
+    echo   D:\Ue\UE\UE_5.X
+    echo   C:\Program Files\Epic Games\UE_5.X
+    echo   D:\Epic Games\UE_5.X
+    echo   C:\Epic Games\UE_5.X
+    echo   E:\Epic Games\UE_5.X
+    echo.
+    pause
+    exit /b 1
 )
 
 REM Set tool paths

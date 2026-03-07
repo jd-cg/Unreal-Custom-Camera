@@ -2,7 +2,7 @@
 
 **[English](README_EN.md)**
 
-适用于 **Unreal Engine 5.4** 的离轴投影插件，可用于 CAVE 系统、投影映射、多屏显示和头部追踪显示。
+适用于 **Unreal Engine 5.4 / 5.5 / 5.6** 的离轴投影插件，可用于 CAVE 系统、投影映射、多屏显示和头部追踪显示。
 
 ## 功能
 
@@ -266,10 +266,14 @@ git lfs pull
 ## 编译
 
 ```bash
-# 快速编译（自动检测 UE5 路径）
+# 快速编译（自动检测 UE5 路径，支持 5.4 / 5.5 / 5.6）
 QuickBuild.bat
 
-# 如果 QuickBuild 无法编译，可直接打开项目在编辑器中编译（Ctrl+Alt+F11）
+# 如果 QuickBuild 无法找到引擎，可用文本编辑器打开脚本，
+# 手动填写你的引擎路径：
+#   set "UE5_PATH=C:\Your\Path\To\UE_5.X"
+
+# 也可直接在编辑器中编译（Ctrl+Alt+F11）
 start "" "MyCustomCam.uproject"
 ```
 

@@ -10,20 +10,45 @@ echo  Quick Build - Asymmetric Camera Plugin
 echo ============================================
 echo.
 
-REM Auto-detect UE5 Path
+REM ============================================
+REM Auto-detect UE5 Path (5.4 / 5.5 / 5.6)
+REM ============================================
 set "UE5_PATH="
 
-if exist "D:\Ue\UE\UE_5.4\Engine\Build\BatchFiles\Build.bat" (
-    set "UE5_PATH=D:\Ue\UE\UE_5.4"
-) else if exist "C:\Program Files\Epic Games\UE_5.4\Engine\Build\BatchFiles\Build.bat" (
-    set "UE5_PATH=C:\Program Files\Epic Games\UE_5.4"
-) else if exist "D:\Epic Games\UE_5.4\Engine\Build\BatchFiles\Build.bat" (
-    set "UE5_PATH=D:\Epic Games\UE_5.4"
-) else if exist "C:\Epic Games\UE_5.4\Engine\Build\BatchFiles\Build.bat" (
-    set "UE5_PATH=C:\Epic Games\UE_5.4"
-) else (
-    echo ERROR: Could not find Unreal Engine 5.4
-    echo Please edit this script and set UE5_PATH manually
+REM --- Try common installation directories for each supported version ---
+for %%V in (5.6 5.5 5.4) do (
+    if "!UE5_PATH!"=="" (
+        for %%D in (
+            "D:\Ue\UE\UE_%%V"
+            "C:\Program Files\Epic Games\UE_%%V"
+            "D:\Epic Games\UE_%%V"
+            "C:\Epic Games\UE_%%V"
+            "E:\Epic Games\UE_%%V"
+        ) do (
+            if "!UE5_PATH!"=="" (
+                if exist "%%~D\Engine\Build\BatchFiles\Build.bat" (
+                    set "UE5_PATH=%%~D"
+                    echo Found UE %%V at: %%~D
+                )
+            )
+        )
+    )
+)
+
+if "!UE5_PATH!"=="" (
+    echo.
+    echo ERROR: Could not find Unreal Engine 5.4 / 5.5 / 5.6 in common locations.
+    echo.
+    echo Please open this script in a text editor and set UE5_PATH manually:
+    echo   set "UE5_PATH=C:\Your\Path\To\UE_5.X"
+    echo.
+    echo Checked directories:
+    echo   D:\Ue\UE\UE_5.X
+    echo   C:\Program Files\Epic Games\UE_5.X
+    echo   D:\Epic Games\UE_5.X
+    echo   C:\Epic Games\UE_5.X
+    echo   E:\Epic Games\UE_5.X
+    echo.
     pause
     exit /b 1
 )
