@@ -5,9 +5,23 @@
 #include "CoreMinimal.h"
 #include "MoviePipelineDeferredPasses.h"
 #include "AsymmetricStereoTypes.h"
+#include "Misc/FrameRate.h"
 #include "MoviePipelineAsymmetricStereoPass.generated.h"
 
 class UAsymmetricCameraComponent;
+
+/**
+ * Per-shot record: exact file paths extracted from MRQ output data in BeginExportImpl.
+ * No directory scanning or filename pattern guessing required.
+ */
+struct FShotCompositeRecord
+{
+	TArray<FString> LeftEyePaths;   // Absolute paths, sorted in frame order
+	TArray<FString> RightEyePaths;  // Absolute paths, sorted in frame order
+	FString         OutputDir;
+	FFrameRate      FrameRate;
+	FString         ShotName;
+};
 
 /**
  * MRQ render pass that renders left and right eye views for stereo output.
@@ -90,7 +104,7 @@ protected:
 	virtual UE::MoviePipeline::FImagePassCameraViewData GetCameraInfo(FMoviePipelineRenderPassMetrics& InOutSampleState, IViewCalcPayload* OptPayload = nullptr) const override;
 	virtual void BlendPostProcessSettings(FSceneView* InView, FMoviePipelineRenderPassMetrics& InOutSampleState, IViewCalcPayload* OptPayload = nullptr) override;
 
-	// UMoviePipelineSetting overrides - post-finalize export (runs after all files are written to disk)
+	// Post-finalize export — runs after all files are written to disk
 	virtual void BeginExportImpl() override;
 	virtual bool HasFinishedExportingImpl() override;
 
@@ -103,21 +117,35 @@ private:
 	UPROPERTY(Transient)
 	TWeakObjectPtr<UAsymmetricCameraComponent> CachedCameraComponent;
 
-	/** Run FFmpeg to composite left/right eye sequences */
-	void RunFFmpegComposite();
-
 	/** Get the eye index accounting for bSwapEyes */
 	int32 GetEyeIndex(const int32 InCameraIndex) const;
 
-	/** Handle to the running FFmpeg process (for async tracking) */
+	// ── FFmpeg composite queue ───────────────────────────────────────────────
+
+	/** Build CompositeQueue by inspecting MRQ output data (called from BeginExportImpl) */
+	void BuildCompositeQueue();
+
+	/** Launch FFmpeg for the shot at CompositeQueue[CurrentCompositeIndex] */
+	void LaunchFFmpegForShot(const FShotCompositeRecord& Record);
+
+	/** Write a concat demuxer list file; returns the path on success, empty string on failure */
+	FString WriteConcatList(const TArray<FString>& FilePaths, const FString& ListFilePath) const;
+
+	/** Delete source eye files for a completed shot record */
+	void DeleteSourceFiles(const FShotCompositeRecord& Record) const;
+
+	/** Per-shot records built in BeginExportImpl from MRQ output data */
+	TArray<FShotCompositeRecord> CompositeQueue;
+
+	/** Handle to the running FFmpeg process */
 	FProcHandle ActiveFFmpegProcess;
 
-	/** Whether the FFmpeg export has completed */
+	/** Index into CompositeQueue of the shot currently being composited */
+	int32 CurrentCompositeIndex = 0;
+
+	/** Whether all FFmpeg exports have completed */
 	bool bExportFinished = true;
 
-	/** Cached output directory (resolved during TeardownImpl while shot is still valid) */
-	FString CachedOutputDir;
-
-	/** Cached output framerate */
-	int32 CachedFrameRate = 24;
+	/** Temporary concat list files written to disk; cleaned up after all shots finish */
+	TArray<FString> TempConcatFiles;
 };

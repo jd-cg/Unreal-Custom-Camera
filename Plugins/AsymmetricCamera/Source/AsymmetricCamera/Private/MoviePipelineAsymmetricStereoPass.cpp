@@ -4,11 +4,13 @@
 #include "AsymmetricCameraComponent.h"
 #include "MoviePipeline.h"
 #include "MoviePipelineOutputSetting.h"
+#include "MoviePipelinePrimaryConfig.h"
 #include "MovieRenderPipelineDataTypes.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "Misc/Paths.h"
+#include "Misc/FileHelper.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/FileManager.h"
 
@@ -38,12 +40,12 @@ namespace
 		}
 	}
 
-	FString GetFFmpegPixFmtForCodec(EFFmpegVideoCodec InCodec)
+	FString GetFFmpegPixFmtForCodec(EFFmpegVideoCodec /*InCodec*/)
 	{
 		return TEXT("yuv420p");
 	}
 
-	FString GetFFmpegQualityArgs(EFFmpegVideoCodec InCodec, int32 InCRF)
+	FString GetFFmpegQualityArgs(EFFmpegVideoCodec /*InCodec*/, int32 InCRF)
 	{
 		return FString::Printf(TEXT("-crf %d"), InCRF);
 	}
@@ -61,7 +63,8 @@ namespace
 		case EFFmpegVideoCodec::H265:
 			{
 				// x265 has no frame-packing CLI param; use MKV container stereo_mode metadata
-				const TCHAR* StereoMode = (InLayout == EAsymmetricStereoLayout::SideBySide) ? TEXT("side_by_side_left") : TEXT("top_bottom_left");
+				const TCHAR* StereoMode = (InLayout == EAsymmetricStereoLayout::SideBySide)
+					? TEXT("side_by_side_left") : TEXT("top_bottom_left");
 				return FString::Printf(TEXT("-metadata:s:v stereo_mode=%s"), StereoMode);
 			}
 		default:
@@ -78,26 +81,52 @@ namespace
 		}
 		return GetFFmpegFormatString(InFormat);
 	}
+
+	/** Resolve FFmpeg executable: user override > bundled binary > system PATH */
+	FString ResolveFFmpegPath(const FFilePath& UserPath)
+	{
+		if (!UserPath.FilePath.IsEmpty() && FPaths::FileExists(UserPath.FilePath))
+		{
+			return UserPath.FilePath;
+		}
+
+		FString ModulePath = FPaths::GetPath(FModuleManager::Get().GetModuleFilename(TEXT("AsymmetricCamera")));
+		FString PluginRoot  = FPaths::GetPath(FPaths::GetPath(ModulePath));
+		FString BundledPath = FPaths::Combine(PluginRoot, TEXT("ThirdParty"), TEXT("FFmpeg"), TEXT("Win64"), TEXT("ffmpeg.exe"));
+		FPaths::NormalizeFilename(BundledPath);
+
+		if (FPaths::FileExists(BundledPath))
+		{
+			UE_LOG(LogAsymmetricStereoPass, Log, TEXT("Using bundled FFmpeg: %s"), *BundledPath);
+			return BundledPath;
+		}
+
+		UE_LOG(LogAsymmetricStereoPass, Log, TEXT("No bundled FFmpeg at %s, falling back to system PATH."), *BundledPath);
+		return TEXT("ffmpeg");
+	}
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Construction
+// ─────────────────────────────────────────────────────────────────────────────
 
 UMoviePipelineAsymmetricStereoPass::UMoviePipelineAsymmetricStereoPass()
 	: UMoviePipelineDeferredPassBase()
 {
 	PassIdentifier = FMoviePipelinePassIdentifier("AsymmetricStereo");
-	StereoLayout = EAsymmetricStereoLayout::SideBySide;
-	EyeSeparation = 6.4f;
-	bSwapEyes = false;
-	CompositeMode = EAsymmetricCompositeMode::ImageSequence;
-	VideoCodec = EFFmpegVideoCodec::H264;
+	StereoLayout   = EAsymmetricStereoLayout::SideBySide;
+	EyeSeparation  = 6.4f;
+	bSwapEyes      = false;
+	CompositeMode  = EAsymmetricCompositeMode::ImageSequence;
+	VideoCodec     = EFFmpegVideoCodec::H264;
 	CompositeQuality = 18;
-	OutputFormat = EFFmpegOutputFormat::MP4;
+	OutputFormat   = EFFmpegOutputFormat::MP4;
 	bDeleteSourceAfterComposite = true;
 
-	// Set default FFmpegPath to bundled binary (relative to plugin)
 	if (!IsTemplate())
 	{
-		FString ModulePath = FPaths::GetPath(FModuleManager::Get().GetModuleFilename(TEXT("AsymmetricCamera")));
-		FString PluginRoot = FPaths::GetPath(FPaths::GetPath(ModulePath));
+		FString ModulePath  = FPaths::GetPath(FModuleManager::Get().GetModuleFilename(TEXT("AsymmetricCamera")));
+		FString PluginRoot  = FPaths::GetPath(FPaths::GetPath(ModulePath));
 		FString BundledPath = FPaths::Combine(PluginRoot, TEXT("ThirdParty"), TEXT("FFmpeg"), TEXT("Win64"), TEXT("ffmpeg.exe"));
 		FPaths::NormalizeFilename(BundledPath);
 		if (FPaths::FileExists(BundledPath))
@@ -107,11 +136,14 @@ UMoviePipelineAsymmetricStereoPass::UMoviePipelineAsymmetricStereoPass()
 	}
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// MRQ lifecycle
+// ─────────────────────────────────────────────────────────────────────────────
+
 void UMoviePipelineAsymmetricStereoPass::SetupImpl(const MoviePipeline::FMoviePipelineRenderPassInitSettings& InPassInitSettings)
 {
 	Super::SetupImpl(InPassInitSettings);
 
-	// Find AsymmetricCameraComponent in the world
 	CachedCameraComponent = nullptr;
 	UWorld* World = GetWorld();
 	if (World)
@@ -132,40 +164,126 @@ void UMoviePipelineAsymmetricStereoPass::SetupImpl(const MoviePipeline::FMoviePi
 	{
 		UE_LOG(LogAsymmetricStereoPass, Warning, TEXT("No AsymmetricCameraComponent found in scene. Stereo eye offset will use camera right vector only."));
 	}
+
+	// Reset composite state for this render session
+	CompositeQueue.Reset();
+	TempConcatFiles.Reset();
+	CurrentCompositeIndex = 0;
+	bExportFinished = true;
 }
 
 void UMoviePipelineAsymmetricStereoPass::TeardownImpl()
 {
-	// Cache output directory and framerate while the shot is still valid.
-	// BeginExportImpl runs after all shots are done, so GetCurrentShotIndex is no longer valid there.
-	if (CompositeMode != EAsymmetricCompositeMode::Disabled && StereoLayout != EAsymmetricStereoLayout::None)
-	{
-		UMoviePipelineOutputSetting* OutputSetting = GetPipeline()->FindOrAddSettingForShot<UMoviePipelineOutputSetting>(
-			GetPipeline()->GetActiveShotList()[GetPipeline()->GetCurrentShotIndex()]);
-
-		if (OutputSetting)
-		{
-			CachedOutputDir = OutputSetting->OutputDirectory.Path;
-			CachedOutputDir.ReplaceInline(TEXT("{project_dir}"), *FPaths::ConvertRelativePathToFull(FPaths::ProjectDir()));
-			FPaths::NormalizeDirectoryName(CachedOutputDir);
-			CachedFrameRate = OutputSetting->bUseCustomFrameRate ? OutputSetting->OutputFrameRate.Numerator : 24;
-		}
-	}
-
 	CachedCameraComponent = nullptr;
 	Super::TeardownImpl();
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Export lifecycle
+// ─────────────────────────────────────────────────────────────────────────────
+
+void UMoviePipelineAsymmetricStereoPass::BuildCompositeQueue()
+{
+	// MRQ provides GetOutputDataParams() which returns the complete output manifest
+	// after all files have been written to disk. This is called from BeginExportImpl.
+	//
+	// Structure:
+	//   FMoviePipelineOutputData
+	//     .ShotData[]                           — one entry per shot
+	//       .Shot                               — UMoviePipelineExecutorShot*
+	//       .RenderPassData[PassIdentifier]
+	//         .FilePaths[]                      — absolute paths, all frames
+	//
+	// We collect LeftEye and RightEye paths per shot, sort them (guarantees frame
+	// order regardless of starting frame number or gaps), and build FShotCompositeRecord.
+
+	UMoviePipeline* Pipeline = GetPipeline();
+	if (!Pipeline)
+	{
+		return;
+	}
+
+	const FMoviePipelineOutputData OutputData = Pipeline->GetOutputDataParams();
+	const FFrameRate EffectiveFrameRate = Pipeline->GetPipelinePrimaryConfig()
+		->GetEffectiveFrameRate(Pipeline->GetTargetSequence());
+
+	for (int32 ShotIdx = 0; ShotIdx < OutputData.ShotData.Num(); ++ShotIdx)
+	{
+		const FMoviePipelineShotOutputData& ShotOutput = OutputData.ShotData[ShotIdx];
+
+		FShotCompositeRecord Record;
+		Record.FrameRate = EffectiveFrameRate;
+		// Use OuterName (shot section name) when available, fall back to index
+		Record.ShotName = ShotOutput.Shot.IsValid() && !ShotOutput.Shot->OuterName.IsEmpty()
+			? ShotOutput.Shot->OuterName
+			: FString::Printf(TEXT("shot%02d"), ShotIdx);
+
+		// Iterate all render passes for this shot and classify by eye name
+		for (const auto& PassPair : ShotOutput.RenderPassData)
+		{
+			for (const FString& FilePath : PassPair.Value.FilePaths)
+			{
+				const FString FileName = FPaths::GetCleanFilename(FilePath);
+
+				if (FileName.Contains(TEXT("LeftEye")))
+				{
+					Record.LeftEyePaths.Add(FilePath);
+					if (Record.OutputDir.IsEmpty())
+					{
+						Record.OutputDir = FPaths::GetPath(FilePath);
+					}
+				}
+				else if (FileName.Contains(TEXT("RightEye")))
+				{
+					Record.RightEyePaths.Add(FilePath);
+					if (Record.OutputDir.IsEmpty())
+					{
+						Record.OutputDir = FPaths::GetPath(FilePath);
+					}
+				}
+			}
+		}
+
+		// Sort guarantees ascending frame order regardless of number format or start offset
+		Record.LeftEyePaths.Sort();
+		Record.RightEyePaths.Sort();
+
+		if (Record.LeftEyePaths.Num() > 0 && Record.RightEyePaths.Num() > 0)
+		{
+			UE_LOG(LogAsymmetricStereoPass, Log,
+				TEXT("Shot '%s': %d left + %d right eye frames queued for composite."),
+				*Record.ShotName, Record.LeftEyePaths.Num(), Record.RightEyePaths.Num());
+			CompositeQueue.Add(MoveTemp(Record));
+		}
+		else
+		{
+			UE_LOG(LogAsymmetricStereoPass, Warning,
+				TEXT("Shot '%s': missing LeftEye or RightEye files (left=%d, right=%d). "
+				     "Make sure {camera_name} is included in the MRQ output filename template."),
+				*Record.ShotName, Record.LeftEyePaths.Num(), Record.RightEyePaths.Num());
+		}
+	}
+}
+
 void UMoviePipelineAsymmetricStereoPass::BeginExportImpl()
 {
-	// Called after all files have been finalized and written to disk.
-	// This is the correct place to run FFmpeg composite (not TeardownImpl,
-	// which runs before ProcessOutstandingFinishedFrames writes files).
-	if (CompositeMode != EAsymmetricCompositeMode::Disabled && StereoLayout != EAsymmetricStereoLayout::None)
+	if (CompositeMode == EAsymmetricCompositeMode::Disabled || StereoLayout == EAsymmetricStereoLayout::None)
 	{
-		bExportFinished = false;
-		RunFFmpegComposite();
+		return;
 	}
+
+	BuildCompositeQueue();
+
+	if (CompositeQueue.Num() == 0)
+	{
+		UE_LOG(LogAsymmetricStereoPass, Warning, TEXT("No stereo shot pairs found — skipping FFmpeg composite."));
+		bExportFinished = true;
+		return;
+	}
+
+	bExportFinished = false;
+	CurrentCompositeIndex = 0;
+	LaunchFFmpegForShot(CompositeQueue[CurrentCompositeIndex]);
 }
 
 bool UMoviePipelineAsymmetricStereoPass::HasFinishedExportingImpl()
@@ -175,50 +293,60 @@ bool UMoviePipelineAsymmetricStereoPass::HasFinishedExportingImpl()
 		return true;
 	}
 
-	// Check if the FFmpeg process is still running
+	// Still waiting for current FFmpeg process
+	if (ActiveFFmpegProcess.IsValid() && FPlatformProcess::IsProcRunning(ActiveFFmpegProcess))
+	{
+		return false;
+	}
+
+	// Current process has finished — check result and advance queue
 	if (ActiveFFmpegProcess.IsValid())
 	{
-		if (FPlatformProcess::IsProcRunning(ActiveFFmpegProcess))
-		{
-			return false;
-		}
-
-		// Process finished - check return code
 		int32 ReturnCode = 0;
 		FPlatformProcess::GetProcReturnCode(ActiveFFmpegProcess, &ReturnCode);
-
-		if (ReturnCode == 0 && bDeleteSourceAfterComposite)
-		{
-			UE_LOG(LogAsymmetricStereoPass, Log, TEXT("FFmpeg composite succeeded. Deleting source sequences..."));
-
-			TArray<FString> LeftToDelete;
-			IFileManager::Get().FindFiles(LeftToDelete, *FPaths::Combine(CachedOutputDir, TEXT("*LeftEye*")), true, false);
-			for (const FString& File : LeftToDelete)
-			{
-				IFileManager::Get().Delete(*FPaths::Combine(CachedOutputDir, File));
-			}
-
-			TArray<FString> RightToDelete;
-			IFileManager::Get().FindFiles(RightToDelete, *FPaths::Combine(CachedOutputDir, TEXT("*RightEye*")), true, false);
-			for (const FString& File : RightToDelete)
-			{
-				IFileManager::Get().Delete(*FPaths::Combine(CachedOutputDir, File));
-			}
-
-			UE_LOG(LogAsymmetricStereoPass, Log, TEXT("Deleted %d left + %d right eye source files."), LeftToDelete.Num(), RightToDelete.Num());
-		}
-		else if (ReturnCode != 0)
-		{
-			UE_LOG(LogAsymmetricStereoPass, Error, TEXT("FFmpeg exited with code %d, keeping source files."), ReturnCode);
-		}
-
 		FPlatformProcess::CloseProc(ActiveFFmpegProcess);
 		ActiveFFmpegProcess.Reset();
+
+		const FShotCompositeRecord& FinishedRecord = CompositeQueue[CurrentCompositeIndex];
+		if (ReturnCode == 0)
+		{
+			UE_LOG(LogAsymmetricStereoPass, Log, TEXT("FFmpeg composite succeeded for shot '%s'."), *FinishedRecord.ShotName);
+			if (bDeleteSourceAfterComposite)
+			{
+				DeleteSourceFiles(FinishedRecord);
+			}
+		}
+		else
+		{
+			UE_LOG(LogAsymmetricStereoPass, Error,
+				TEXT("FFmpeg exited with code %d for shot '%s', keeping source files."),
+				ReturnCode, *FinishedRecord.ShotName);
+		}
+
+		++CurrentCompositeIndex;
 	}
+
+	// Launch the next shot if any remain
+	if (CurrentCompositeIndex < CompositeQueue.Num())
+	{
+		LaunchFFmpegForShot(CompositeQueue[CurrentCompositeIndex]);
+		return false;
+	}
+
+	// All shots done — clean up temporary concat list files
+	for (const FString& TempFile : TempConcatFiles)
+	{
+		IFileManager::Get().Delete(*TempFile);
+	}
+	TempConcatFiles.Reset();
 
 	bExportFinished = true;
 	return true;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Multi-camera / stereo eye overrides
+// ─────────────────────────────────────────────────────────────────────────────
 
 int32 UMoviePipelineAsymmetricStereoPass::GetNumCamerasToRender() const
 {
@@ -253,20 +381,19 @@ UE::MoviePipeline::FImagePassCameraViewData UMoviePipelineAsymmetricStereoPass::
 	FMoviePipelineRenderPassMetrics& InOutSampleState, IViewCalcPayload* OptPayload) const
 {
 	// Always get base camera data from PlayerCameraManager (single camera path)
-	// We temporarily force NumCameras=1 logic by calling the grandparent
-	UE::MoviePipeline::FImagePassCameraViewData OutCameraData = UMoviePipelineImagePassBase::GetCameraInfo(InOutSampleState, OptPayload);
+	UE::MoviePipeline::FImagePassCameraViewData OutCameraData =
+		UMoviePipelineImagePassBase::GetCameraInfo(InOutSampleState, OptPayload);
 
 	if (StereoLayout == EAsymmetricStereoLayout::None)
 	{
 		return OutCameraData;
 	}
 
-	// Determine which eye we're rendering
 	const int32 CameraIndex = InOutSampleState.OutputState.CameraIndex;
-	const int32 EyeIdx = GetEyeIndex(CameraIndex);
-	const float EyeSign = (EyeIdx == 0) ? -1.0f : 1.0f;
+	const int32 EyeIdx      = GetEyeIndex(CameraIndex);
+	const float EyeSign     = (EyeIdx == 0) ? -1.0f : 1.0f;
 
-	// Calculate eye offset along screen right vector (consistent with CalculateOffAxisProjection)
+	// Calculate eye offset along screen right vector
 	FVector EyeOffset;
 	if (CachedCameraComponent.IsValid())
 	{
@@ -277,39 +404,35 @@ UE::MoviePipeline::FImagePassCameraViewData UMoviePipelineAsymmetricStereoPass::
 	}
 	else
 	{
-		// No AsymmetricCameraComponent — fall back to camera right vector
 		const FVector RightVector = FRotationMatrix(OutCameraData.ViewInfo.Rotation).GetScaledAxis(EAxis::Y);
 		EyeOffset = RightVector * EyeSign * (EyeSeparation * 0.5f);
 	}
 
 	OutCameraData.ViewInfo.Location += EyeOffset;
 
-	// If we have an AsymmetricCameraComponent, use its projection.
-	// EyePosition is already the offset world-space position (applied above),
-	// so CalculateOffAxisProjection must not apply any additional internal offset.
-	// ComponentEyeSeparation must be 0 for MRQ stereo; the IPD is controlled by
-	// this pass's EyeSeparation property only.
+	// Apply asymmetric off-axis projection if available.
+	// ComponentEyeSeparation must be 0; IPD is controlled by this pass's EyeSeparation only.
 	if (CachedCameraComponent.IsValid() && CachedCameraComponent->bUseAsymmetricProjection)
 	{
-		FVector EyePosition = OutCameraData.ViewInfo.Location;
-		FRotator ProjViewRotation;
-		FMatrix ProjectionMatrix;
+		FVector    EyePosition = OutCameraData.ViewInfo.Location;
+		FRotator   ProjViewRotation;
+		FMatrix    ProjectionMatrix;
 
 		if (CachedCameraComponent->CalculateOffAxisProjection(EyePosition, ProjViewRotation, ProjectionMatrix))
 		{
 			OutCameraData.bUseCustomProjectionMatrix = true;
-			OutCameraData.CustomProjectionMatrix = ProjectionMatrix;
+			OutCameraData.CustomProjectionMatrix     = ProjectionMatrix;
 		}
 	}
 
 	return OutCameraData;
 }
 
-void UMoviePipelineAsymmetricStereoPass::BlendPostProcessSettings(FSceneView* InView, FMoviePipelineRenderPassMetrics& InOutSampleState, IViewCalcPayload* OptPayload)
+void UMoviePipelineAsymmetricStereoPass::BlendPostProcessSettings(
+	FSceneView* InView, FMoviePipelineRenderPassMetrics& InOutSampleState, IViewCalcPayload* OptPayload)
 {
-	// Our stereo eyes are virtual offsets from the player camera, not sidecar cameras
-	// from Sequencer. Always use the single-camera (PlayerCameraManager) path to avoid
-	// accessing the empty SidecarCameras array which causes a crash.
+	// Use the single-camera (PlayerCameraManager) path to avoid accessing the empty
+	// SidecarCameras array which causes a crash in the deferred pass base.
 	UMoviePipelineImagePassBase::BlendPostProcessSettings(InView, InOutSampleState, OptPayload);
 }
 
@@ -320,147 +443,139 @@ FText UMoviePipelineAsymmetricStereoPass::GetDisplayText() const
 }
 #endif
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Private helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
 int32 UMoviePipelineAsymmetricStereoPass::GetEyeIndex(const int32 InCameraIndex) const
 {
-	// CameraIndex 0 = left eye, 1 = right eye (unless swapped)
 	return bSwapEyes ? (1 - InCameraIndex) : InCameraIndex;
 }
 
-void UMoviePipelineAsymmetricStereoPass::RunFFmpegComposite()
+FString UMoviePipelineAsymmetricStereoPass::WriteConcatList(
+	const TArray<FString>& FilePaths, const FString& ListFilePath) const
 {
-	// Resolve FFmpeg path: user override > bundled binary > system PATH
-	FString ResolvedFFmpegPath = FFmpegPath.FilePath;
-	if (ResolvedFFmpegPath.IsEmpty())
+	// FFmpeg concat demuxer format — one line per file, single-quoted path.
+	// This approach is immune to frame number format, starting offset, and gaps.
+	TArray<FString> Lines;
+	Lines.Reserve(FilePaths.Num());
+	for (const FString& Path : FilePaths)
 	{
-		FString ModulePath = FPaths::GetPath(FModuleManager::Get().GetModuleFilename(TEXT("AsymmetricCamera")));
-		FString PluginRoot = FPaths::GetPath(FPaths::GetPath(ModulePath));
-		FString BundledPath = FPaths::Combine(PluginRoot, TEXT("ThirdParty"), TEXT("FFmpeg"), TEXT("Win64"), TEXT("ffmpeg.exe"));
-		FPaths::NormalizeFilename(BundledPath);
-
-		if (FPaths::FileExists(BundledPath))
-		{
-			ResolvedFFmpegPath = BundledPath;
-			UE_LOG(LogAsymmetricStereoPass, Log, TEXT("Using bundled FFmpeg: %s"), *ResolvedFFmpegPath);
-		}
-		else
-		{
-			ResolvedFFmpegPath = TEXT("ffmpeg");
-			UE_LOG(LogAsymmetricStereoPass, Log, TEXT("No bundled FFmpeg found at %s, falling back to system PATH."), *BundledPath);
-		}
+		FString Normalized = Path;
+		FPaths::NormalizeFilename(Normalized);
+		// Escape embedded single quotes for the concat list format
+		Normalized.ReplaceInline(TEXT("'"), TEXT("'\\''"));
+		Lines.Add(FString::Printf(TEXT("file '%s'"), *Normalized));
 	}
 
-	// Use cached output directory (resolved during TeardownImpl while shot was still valid)
-	if (CachedOutputDir.IsEmpty())
+	const FString Content = FString::Join(Lines, TEXT("\n")) + TEXT("\n");
+	if (FFileHelper::SaveStringToFile(Content, *ListFilePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
 	{
-		UE_LOG(LogAsymmetricStereoPass, Warning, TEXT("No cached output directory, skipping FFmpeg composite."));
-		bExportFinished = true;
+		return ListFilePath;
+	}
+
+	UE_LOG(LogAsymmetricStereoPass, Error, TEXT("Failed to write concat list: %s"), *ListFilePath);
+	return FString();
+}
+
+void UMoviePipelineAsymmetricStereoPass::LaunchFFmpegForShot(const FShotCompositeRecord& Record)
+{
+	const FString FFmpegExe = ResolveFFmpegPath(FFmpegPath);
+
+	// Write concat demuxer list files — one for each eye.
+	// FFmpeg will read exactly the files listed, in order, regardless of their
+	// frame numbers. No %04d pattern, no -start_number guessing needed.
+	const FString LeftListPath  = FPaths::Combine(Record.OutputDir,
+		FString::Printf(TEXT("_concat_left_%s.txt"),  *Record.ShotName));
+	const FString RightListPath = FPaths::Combine(Record.OutputDir,
+		FString::Printf(TEXT("_concat_right_%s.txt"), *Record.ShotName));
+
+	if (WriteConcatList(Record.LeftEyePaths,  LeftListPath).IsEmpty() ||
+		WriteConcatList(Record.RightEyePaths, RightListPath).IsEmpty())
+	{
+		UE_LOG(LogAsymmetricStereoPass, Error,
+			TEXT("Failed to write concat lists for shot '%s', skipping."), *Record.ShotName);
 		return;
 	}
 
-	const FString& OutputDir = CachedOutputDir;
+	TempConcatFiles.Add(LeftListPath);
+	TempConcatFiles.Add(RightListPath);
 
-	UE_LOG(LogAsymmetricStereoPass, Log, TEXT("Output directory: %s"), *OutputDir);
+	const FString FilterName   = (StereoLayout == EAsymmetricStereoLayout::SideBySide) ? TEXT("hstack") : TEXT("vstack");
+	const FString LayoutName   = (StereoLayout == EAsymmetricStereoLayout::SideBySide) ? TEXT("SBS")    : TEXT("TB");
 
-	// Scan the output directory for LeftEye files to determine the actual naming pattern
-	TArray<FString> LeftEyeFiles;
-	IFileManager::Get().FindFiles(LeftEyeFiles, *FPaths::Combine(OutputDir, TEXT("*LeftEye*")), true, false);
-	LeftEyeFiles.Sort();
-
-	if (LeftEyeFiles.Num() == 0)
-	{
-		UE_LOG(LogAsymmetricStereoPass, Warning, TEXT("No LeftEye files found in %s, skipping FFmpeg composite."), *OutputDir);
-		bExportFinished = true;
-		return;
-	}
-
-	// Extract the naming pattern from the first file
-	// Example: "seq_001.LeftEye.0000.jpeg" -> prefix="seq_001.LeftEye.", ext=".jpeg", pad=4
-	const FString& FirstFile = LeftEyeFiles[0];
-	const FString Extension = FPaths::GetExtension(FirstFile, true);
-
-	FString BaseName = FPaths::GetBaseFilename(FirstFile);
-	int32 LastDot = INDEX_NONE;
-	BaseName.FindLastChar(TEXT('.'), LastDot);
-	if (LastDot == INDEX_NONE)
-	{
-		UE_LOG(LogAsymmetricStereoPass, Warning, TEXT("Cannot parse frame number from filename: %s"), *FirstFile);
-		bExportFinished = true;
-		return;
-	}
-
-	FString FrameStr = BaseName.Mid(LastDot + 1);
-	FString Prefix = BaseName.Left(LastDot + 1);
-	const int32 ZeroPad = FrameStr.Len();
-
-	// Build FFmpeg sequence pattern: "seq_001.LeftEye.%04d.jpeg"
-	FString LeftSeqPattern = FString::Printf(TEXT("%s%%0%dd%s"), *Prefix, ZeroPad, *Extension);
-	FString RightSeqPattern = LeftSeqPattern.Replace(TEXT("LeftEye"), TEXT("RightEye"));
-
-	FString LeftInputPath = FPaths::Combine(OutputDir, LeftSeqPattern);
-	FString RightInputPath = FPaths::Combine(OutputDir, RightSeqPattern);
-
-	// Use cached framerate from TeardownImpl
-	const int32 FrameRate = CachedFrameRate;
-
-	const FString FilterName = (StereoLayout == EAsymmetricStereoLayout::SideBySide) ? TEXT("hstack") : TEXT("vstack");
-	const FString LayoutName = (StereoLayout == EAsymmetricStereoLayout::SideBySide) ? TEXT("SBS") : TEXT("TB");
+	// Exact fractional frame rate string, e.g. "24000/1001" for 23.976 fps
+	const FString FrameRateStr = FString::Printf(TEXT("%d/%d"),
+		Record.FrameRate.Numerator, Record.FrameRate.Denominator);
 
 	FString Args;
 	FString OutputPath;
 
 	if (CompositeMode == EAsymmetricCompositeMode::ImageSequence)
 	{
-		// Output merged image sequence — same format as input (png/jpeg/exr etc.)
-		FString OutputPattern = FString::Printf(TEXT("stereo_%s.%%0%dd%s"), *LayoutName, ZeroPad, *Extension);
-		OutputPath = FPaths::Combine(OutputDir, OutputPattern);
+		// Derive output extension from first left-eye file
+		const FString Extension = FPaths::GetExtension(Record.LeftEyePaths[0], /*bIncludeDot=*/true);
+		// %05d in the output path tells FFmpeg to write a numbered sequence
+		OutputPath = FPaths::Combine(Record.OutputDir,
+			FString::Printf(TEXT("stereo_%s_%s_%%05d%s"), *LayoutName, *Record.ShotName, *Extension));
 
 		Args = FString::Printf(
-			TEXT("-y -i \"%s\" -i \"%s\" -filter_complex \"[0:v][1:v]%s=inputs=2\" \"%s\""),
-			*LeftInputPath, *RightInputPath, *FilterName, *OutputPath
-		);
+			TEXT("-y -f concat -safe 0 -i \"%s\" -f concat -safe 0 -i \"%s\""
+			     " -filter_complex \"[0:v][1:v]%s=inputs=2\" \"%s\""),
+			*LeftListPath, *RightListPath, *FilterName, *OutputPath);
 	}
 	else
 	{
-		// Output video file
-		const FString Codec = GetFFmpegCodecString(VideoCodec);
-		const FString Fmt = GetOutputFormat(VideoCodec, OutputFormat);
-		const FString PixFmt = GetFFmpegPixFmtForCodec(VideoCodec);
+		const FString Codec       = GetFFmpegCodecString(VideoCodec);
+		const FString Fmt         = GetOutputFormat(VideoCodec, OutputFormat);
+		const FString PixFmt      = GetFFmpegPixFmtForCodec(VideoCodec);
 		const FString QualityArgs = GetFFmpegQualityArgs(VideoCodec, CompositeQuality);
-		const FString StereoArgs = GetStereoMetadataArgs(VideoCodec, StereoLayout);
-		OutputPath = FPaths::Combine(OutputDir, FString::Printf(TEXT("stereo_%s.%s"), *LayoutName, *Fmt));
+		const FString StereoArgs  = GetStereoMetadataArgs(VideoCodec, StereoLayout);
+		OutputPath = FPaths::Combine(Record.OutputDir,
+			FString::Printf(TEXT("stereo_%s_%s.%s"), *LayoutName, *Record.ShotName, *Fmt));
 
 		Args = FString::Printf(
-			TEXT("-y -framerate %d -i \"%s\" -framerate %d -i \"%s\" -filter_complex \"[0:v][1:v]%s=inputs=2\" -c:v %s %s -pix_fmt %s %s \"%s\""),
-			FrameRate, *LeftInputPath,
-			FrameRate, *RightInputPath,
+			TEXT("-y -f concat -safe 0 -framerate %s -i \"%s\""
+			     " -f concat -safe 0 -framerate %s -i \"%s\""
+			     " -filter_complex \"[0:v][1:v]%s=inputs=2\""
+			     " -c:v %s %s -pix_fmt %s %s \"%s\""),
+			*FrameRateStr, *LeftListPath,
+			*FrameRateStr, *RightListPath,
 			*FilterName,
-			*Codec,
-			*QualityArgs,
-			*PixFmt,
-			*StereoArgs,
-			*OutputPath
-		);
+			*Codec, *QualityArgs, *PixFmt, *StereoArgs,
+			*OutputPath);
 	}
 
-	UE_LOG(LogAsymmetricStereoPass, Log, TEXT("Running FFmpeg composite: %s %s"), *ResolvedFFmpegPath, *Args);
+	UE_LOG(LogAsymmetricStereoPass, Log,
+		TEXT("Launching FFmpeg for shot '%s':\n  %s %s"), *Record.ShotName, *FFmpegExe, *Args);
 
-	// Launch FFmpeg asynchronously. HasFinishedExportingImpl() will poll for completion
-	// and handle source file deletion when the process exits.
 	ActiveFFmpegProcess = FPlatformProcess::CreateProc(
-		*ResolvedFFmpegPath,
-		*Args,
-		false,  // bLaunchDetached
-		false,  // bLaunchHidden
-		false,  // bLaunchReallyHidden
+		*FFmpegExe, *Args,
+		/*bLaunchDetached=*/false,
+		/*bLaunchHidden=*/false,
+		/*bLaunchReallyHidden=*/false,
 		nullptr, 0, nullptr, nullptr);
 
-	if (ActiveFFmpegProcess.IsValid())
+	if (!ActiveFFmpegProcess.IsValid())
 	{
-		UE_LOG(LogAsymmetricStereoPass, Log, TEXT("FFmpeg process launched. Output will be: %s"), *OutputPath);
+		UE_LOG(LogAsymmetricStereoPass, Error,
+			TEXT("Failed to launch FFmpeg for shot '%s'. "
+			     "Check FFmpegPath or run ThirdParty/FFmpeg/download_ffmpeg.ps1."),
+			*Record.ShotName);
 	}
-	else
+}
+
+void UMoviePipelineAsymmetricStereoPass::DeleteSourceFiles(const FShotCompositeRecord& Record) const
+{
+	int32 Deleted = 0;
+	for (const FString& Path : Record.LeftEyePaths)
 	{
-		UE_LOG(LogAsymmetricStereoPass, Error, TEXT("Failed to launch FFmpeg. Check FFmpegPath or run ThirdParty/FFmpeg/download_ffmpeg.ps1."));
-		bExportFinished = true;
+		if (IFileManager::Get().Delete(*Path)) { ++Deleted; }
 	}
+	for (const FString& Path : Record.RightEyePaths)
+	{
+		if (IFileManager::Get().Delete(*Path)) { ++Deleted; }
+	}
+	UE_LOG(LogAsymmetricStereoPass, Log,
+		TEXT("Deleted %d source eye files for shot '%s'."), Deleted, *Record.ShotName);
 }
