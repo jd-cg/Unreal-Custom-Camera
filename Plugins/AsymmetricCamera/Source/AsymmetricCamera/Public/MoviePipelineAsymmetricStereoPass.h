@@ -60,11 +60,12 @@ public:
 			ToolTip = "Disabled=保留左右眼分离序列；Image Sequence=每帧输出一张合并图；Video=输出合并视频文件"))
 	EAsymmetricCompositeMode CompositeMode;
 
-	/** Path to FFmpeg executable. Leave empty to use bundled or system PATH. */
+	/** Path to FFmpeg executable. Must be an absolute path (e.g. D:/tools/ffmpeg/bin/ffmpeg.exe).
+	 *  Falls back to system PATH if left empty. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stereo|FFmpeg",
 		meta = (EditCondition = "CompositeMode != EAsymmetricCompositeMode::Disabled && StereoLayout != EAsymmetricStereoLayout::None",
 			FilePathFilter = "exe",
-			ToolTip = "FFmpeg 可执行文件路径。留空则自动使用插件自带的 FFmpeg 或系统 PATH 中的 FFmpeg"))
+			ToolTip = "FFmpeg 可执行文件绝对路径，例如 D:/tools/ffmpeg/bin/ffmpeg.exe。留空则使用系统 PATH 中的 ffmpeg。"))
 	FFilePath FFmpegPath;
 
 	/** Video codec for composite output */

@@ -83,32 +83,20 @@ namespace
 		return GetFFmpegFormatString(InFormat);
 	}
 
-	/** Resolve FFmpeg executable: user override > bundled binary > system PATH.
-	 *  Always returns an absolute path so CreateProcess can locate the binary. */
+	/** Resolve FFmpeg executable path.
+	 *  Uses the user-specified absolute path directly.
+	 *  Falls back to "ffmpeg" (system PATH) if no path is set. */
 	FString ResolveFFmpegPath(const FFilePath& UserPath)
 	{
 		if (!UserPath.FilePath.IsEmpty())
 		{
-			FString Abs = FPaths::ConvertRelativePathToFull(UserPath.FilePath);
-			if (FPaths::FileExists(Abs))
-			{
-				return Abs;
-			}
+			UE_LOG(LogAsymmetricStereoPass, Log, TEXT("Using FFmpeg: %s"), *UserPath.FilePath);
+			return UserPath.FilePath;
 		}
 
-		FString ModulePath = FPaths::ConvertRelativePathToFull(
-			FPaths::GetPath(FModuleManager::Get().GetModuleFilename(TEXT("AsymmetricCamera"))));
-		FString PluginRoot  = FPaths::GetPath(FPaths::GetPath(ModulePath));
-		FString BundledPath = FPaths::Combine(PluginRoot, TEXT("ThirdParty"), TEXT("FFmpeg"), TEXT("Win64"), TEXT("ffmpeg.exe"));
-		FPaths::NormalizeFilename(BundledPath);
-
-		if (FPaths::FileExists(BundledPath))
-		{
-			UE_LOG(LogAsymmetricStereoPass, Log, TEXT("Using bundled FFmpeg: %s"), *BundledPath);
-			return BundledPath;
-		}
-
-		UE_LOG(LogAsymmetricStereoPass, Log, TEXT("No bundled FFmpeg at %s, falling back to system PATH."), *BundledPath);
+		UE_LOG(LogAsymmetricStereoPass, Warning,
+			TEXT("FFmpegPath is empty — falling back to system PATH. "
+			     "Set an absolute path in the pass settings to avoid this."));
 		return TEXT("ffmpeg");
 	}
 }
@@ -129,19 +117,7 @@ UMoviePipelineAsymmetricStereoPass::UMoviePipelineAsymmetricStereoPass()
 	CompositeQuality = 18;
 	OutputFormat   = EFFmpegOutputFormat::MP4;
 	bDeleteSourceAfterComposite = true;
-
-	if (!IsTemplate())
-	{
-		FString ModulePath  = FPaths::ConvertRelativePathToFull(
-			FPaths::GetPath(FModuleManager::Get().GetModuleFilename(TEXT("AsymmetricCamera"))));
-		FString PluginRoot  = FPaths::GetPath(FPaths::GetPath(ModulePath));
-		FString BundledPath = FPaths::Combine(PluginRoot, TEXT("ThirdParty"), TEXT("FFmpeg"), TEXT("Win64"), TEXT("ffmpeg.exe"));
-		FPaths::NormalizeFilename(BundledPath);
-		if (FPaths::FileExists(BundledPath))
-		{
-			FFmpegPath.FilePath = BundledPath;
-		}
-	}
+	// FFmpegPath left empty — user must set an absolute path in the pass settings.
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
