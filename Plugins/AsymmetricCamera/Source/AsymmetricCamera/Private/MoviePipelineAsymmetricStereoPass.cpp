@@ -3,6 +3,7 @@
 #include "MoviePipelineAsymmetricStereoPass.h"
 #include "AsymmetricCameraComponent.h"
 #include "MoviePipeline.h"
+#include "MoviePipelineQueue.h"
 #include "MoviePipelineOutputSetting.h"
 #include "MoviePipelinePrimaryConfig.h"
 #include "MovieRenderPipelineDataTypes.h"
@@ -214,8 +215,9 @@ void UMoviePipelineAsymmetricStereoPass::BuildCompositeQueue()
 		FShotCompositeRecord Record;
 		Record.FrameRate = EffectiveFrameRate;
 		// Use OuterName (shot section name) when available, fall back to index
-		Record.ShotName = ShotOutput.Shot.IsValid() && !ShotOutput.Shot->OuterName.IsEmpty()
-			? ShotOutput.Shot->OuterName
+		const UMoviePipelineExecutorShot* Shot = ShotOutput.Shot.Get();
+		Record.ShotName = (Shot && !Shot->OuterName.IsEmpty())
+			? Shot->OuterName
 			: FString::Printf(TEXT("shot%02d"), ShotIdx);
 
 		// Iterate all render passes for this shot and classify by eye name
