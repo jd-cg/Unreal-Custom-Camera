@@ -130,6 +130,7 @@ UMoviePipelineAsymmetricStereoPass::UMoviePipelineAsymmetricStereoPass()
 	CompositeQuality = 18;
 	OutputFormat   = EFFmpegOutputFormat::MP4;
 	bDeleteSourceAfterComposite = true;
+	bDebugSaveConcatFiles = false;
 	// FFmpegPath left empty — user must set an absolute path in the pass settings.
 }
 
@@ -347,14 +348,23 @@ bool UMoviePipelineAsymmetricStereoPass::HasFinishedExportingImpl()
 		return false;
 	}
 
-	// Concat list files are intentionally kept on disk for debugging.
-	// Their paths are logged below so they can be inspected manually.
+	// Clean up or retain temp files based on debug setting
 	if (TempConcatFiles.Num() > 0)
 	{
-		UE_LOG(LogAsymmetricStereoPass, Log, TEXT("Concat list files retained for inspection:"));
-		for (const FString& TempFile : TempConcatFiles)
+		if (bDebugSaveConcatFiles)
 		{
-			UE_LOG(LogAsymmetricStereoPass, Log, TEXT("  %s"), *TempFile);
+			UE_LOG(LogAsymmetricStereoPass, Log, TEXT("Debug mode: concat/log files retained for inspection:"));
+			for (const FString& TempFile : TempConcatFiles)
+			{
+				UE_LOG(LogAsymmetricStereoPass, Log, TEXT("  %s"), *TempFile);
+			}
+		}
+		else
+		{
+			for (const FString& TempFile : TempConcatFiles)
+			{
+				IFileManager::Get().Delete(*TempFile, /*bRequireExists=*/false);
+			}
 		}
 	}
 
@@ -572,7 +582,8 @@ void UMoviePipelineAsymmetricStereoPass::LaunchFFmpegForShot(const FShotComposit
 			*OutputPath);
 	}
 
-	// Log concat list contents so they can be verified without opening the files
+	// Log concat list contents to Output Log when debug mode is on
+	if (bDebugSaveConcatFiles)
 	{
 		FString LeftContent, RightContent;
 		FFileHelper::LoadFileToString(LeftContent,  *LeftListPath);
@@ -581,7 +592,8 @@ void UMoviePipelineAsymmetricStereoPass::LaunchFFmpegForShot(const FShotComposit
 		UE_LOG(LogAsymmetricStereoPass, Log, TEXT("Right concat list (%s):\n%s"), *RightListPath, *RightContent);
 	}
 
-	// FFmpeg stderr log file — kept on disk alongside the concat lists for debugging
+	// FFmpeg stderr is always captured to a log file so errors can be diagnosed.
+	// The file is deleted after composite unless debug mode is on.
 	const FString FFmpegLogPath = FPaths::Combine(Record.OutputDir,
 		FString::Printf(TEXT("_ffmpeg_log_%s.txt"), *Record.ShotName));
 	TempConcatFiles.Add(FFmpegLogPath);

@@ -95,6 +95,13 @@ public:
 			ToolTip = "合成成功后自动删除左右眼源图片序列，仅保留合成结果"))
 	bool bDeleteSourceAfterComposite;
 
+	/** Keep concat list files and FFmpeg log files on disk for debugging.
+	 *  When disabled (default), these temporary files are deleted after composite. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stereo|FFmpeg",
+		meta = (EditCondition = "CompositeMode != EAsymmetricCompositeMode::Disabled && StereoLayout != EAsymmetricStereoLayout::None",
+			ToolTip = "调试模式：保留 concat 列表文件和 FFmpeg 日志文件（_concat_*.txt / _ffmpeg_log_*.txt）。默认关闭，出现合成问题时可开启排查。"))
+	bool bDebugSaveConcatFiles;
+
 protected:
 	// UMoviePipelineDeferredPassBase overrides
 	virtual void SetupImpl(const MoviePipeline::FMoviePipelineRenderPassInitSettings& InPassInitSettings) override;
