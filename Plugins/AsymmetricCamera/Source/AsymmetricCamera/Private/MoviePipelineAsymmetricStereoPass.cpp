@@ -214,11 +214,14 @@ void UMoviePipelineAsymmetricStereoPass::BuildCompositeQueue()
 
 		FShotCompositeRecord Record;
 		Record.FrameRate = EffectiveFrameRate;
-		// Use OuterName (shot section name) when available, fall back to index
+		// Use OuterName (shot section name) when available, fall back to index.
+		// Replace spaces with underscores so the name is safe for use in file paths.
 		const UMoviePipelineExecutorShot* Shot = ShotOutput.Shot.Get();
-		Record.ShotName = (Shot && !Shot->OuterName.IsEmpty())
+		FString RawShotName = (Shot && !Shot->OuterName.IsEmpty())
 			? Shot->OuterName
 			: FString::Printf(TEXT("shot%02d"), ShotIdx);
+		RawShotName.ReplaceInline(TEXT(" "), TEXT("_"));
+		Record.ShotName = RawShotName;
 
 		// Iterate all render passes for this shot and classify by eye name
 		for (const auto& PassPair : ShotOutput.RenderPassData)
