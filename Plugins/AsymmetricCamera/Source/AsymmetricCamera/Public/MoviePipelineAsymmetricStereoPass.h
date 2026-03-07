@@ -6,6 +6,7 @@
 #include "MoviePipelineDeferredPasses.h"
 #include "AsymmetricStereoTypes.h"
 #include "Misc/FrameRate.h"
+#include "Misc/Paths.h"
 #include "MoviePipelineAsymmetricStereoPass.generated.h"
 
 class UAsymmetricCameraComponent;
@@ -60,13 +61,13 @@ public:
 			ToolTip = "Disabled=保留左右眼分离序列；Image Sequence=每帧输出一张合并图；Video=输出合并视频文件"))
 	EAsymmetricCompositeMode CompositeMode;
 
-	/** Path to FFmpeg executable. Must be an absolute path (e.g. D:/tools/ffmpeg/bin/ffmpeg.exe).
-	 *  Falls back to system PATH if left empty. */
+	/** Path to FFmpeg executable.
+	 *  Enter an absolute path, e.g. D:/tools/ffmpeg/bin/ffmpeg.exe
+	 *  Leave empty to use "ffmpeg" from the system PATH. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stereo|FFmpeg",
 		meta = (EditCondition = "CompositeMode != EAsymmetricCompositeMode::Disabled && StereoLayout != EAsymmetricStereoLayout::None",
-			FilePathFilter = "exe",
-			ToolTip = "FFmpeg 可执行文件绝对路径，例如 D:/tools/ffmpeg/bin/ffmpeg.exe。留空则使用系统 PATH 中的 ffmpeg。"))
-	FFilePath FFmpegPath;
+			ToolTip = "FFmpeg 可执行文件路径，例如 D:/tools/ffmpeg/bin/ffmpeg.exe。留空则使用系统 PATH 中的 ffmpeg。直接输入完整路径，避免使用文件选择器（选择器可能改变路径格式）。"))
+	FString FFmpegPath;
 
 	/** Video codec for composite output */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stereo|FFmpeg",

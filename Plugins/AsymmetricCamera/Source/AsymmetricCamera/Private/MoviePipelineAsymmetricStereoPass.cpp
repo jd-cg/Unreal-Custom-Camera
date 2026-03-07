@@ -48,7 +48,9 @@ namespace
 
 	FString GetFFmpegQualityArgs(EFFmpegVideoCodec /*InCodec*/, int32 InCRF)
 	{
-		return FString::Printf(TEXT("-crf %d"), InCRF);
+		// -preset slow: slower encode, better compression/quality at the same CRF.
+		// This gives maximum quality without going lossless (CRF 0).
+		return FString::Printf(TEXT("-crf %d -preset slow"), InCRF);
 	}
 
 	FString GetStereoMetadataArgs(EFFmpegVideoCodec InCodec, EAsymmetricStereoLayout InLayout)
@@ -84,20 +86,30 @@ namespace
 	}
 
 	/** Resolve FFmpeg executable path.
-	 *  Uses the user-specified absolute path directly.
-	 *  Falls back to "ffmpeg" (system PATH) if no path is set. */
-	FString ResolveFFmpegPath(const FFilePath& UserPath)
+	 *  Accepts the user-specified path as-is (should be absolute).
+	 *  If it looks like a relative path, converts to absolute against CWD.
+	 *  Falls back to "ffmpeg" (system PATH) if empty. */
+	FString ResolveFFmpegPath(const FString& UserPath)
 	{
-		if (!UserPath.FilePath.IsEmpty())
+		if (UserPath.IsEmpty())
 		{
-			UE_LOG(LogAsymmetricStereoPass, Log, TEXT("Using FFmpeg: %s"), *UserPath.FilePath);
-			return UserPath.FilePath;
+			UE_LOG(LogAsymmetricStereoPass, Warning,
+				TEXT("FFmpegPath is empty — falling back to system PATH. "
+				     "Set an absolute path in the pass settings to avoid this."));
+			return TEXT("ffmpeg");
 		}
 
-		UE_LOG(LogAsymmetricStereoPass, Warning,
-			TEXT("FFmpegPath is empty — falling back to system PATH. "
-			     "Set an absolute path in the pass settings to avoid this."));
-		return TEXT("ffmpeg");
+		// If user entered a relative path, make it absolute so CreateProc can find it
+		FString Resolved = UserPath;
+		if (FPaths::IsRelative(Resolved))
+		{
+			Resolved = FPaths::ConvertRelativePathToFull(Resolved);
+			UE_LOG(LogAsymmetricStereoPass, Warning,
+				TEXT("FFmpegPath was relative, resolved to: %s"), *Resolved);
+		}
+
+		UE_LOG(LogAsymmetricStereoPass, Log, TEXT("Using FFmpeg: %s"), *Resolved);
+		return Resolved;
 	}
 }
 
@@ -520,14 +532,20 @@ void UMoviePipelineAsymmetricStereoPass::LaunchFFmpegForShot(const FShotComposit
 	{
 		// Derive output extension from first left-eye file
 		const FString Extension = FPaths::GetExtension(Record.LeftEyePaths[0], /*bIncludeDot=*/true);
-		// %05d in the output path tells FFmpeg to write a numbered sequence
 		OutputPath = FPaths::Combine(Record.OutputDir,
 			FString::Printf(TEXT("stereo_%s_%s_%%05d%s"), *LayoutName, *Record.ShotName, *Extension));
 
+		// For JPEG output, -q:v 1 is the highest quality (scale 1-31, lower = better).
+		// For PNG/EXR the format is already lossless; no quality flag needed.
+		const FString ExtLower = Extension.ToLower();
+		const bool bIsJpeg = ExtLower == TEXT(".jpg") || ExtLower == TEXT(".jpeg");
+		const FString QualityFlag = bIsJpeg ? TEXT("-q:v 1") : TEXT("");
+
+		// concat demuxer does not accept -framerate; frame rate is set on the output with -r
 		Args = FString::Printf(
 			TEXT("-y -f concat -safe 0 -i \"%s\" -f concat -safe 0 -i \"%s\""
-			     " -filter_complex \"[0:v][1:v]%s=inputs=2\" \"%s\""),
-			*LeftListPath, *RightListPath, *FilterName, *OutputPath);
+			     " -filter_complex \"[0:v][1:v]%s=inputs=2\" -r %s %s \"%s\""),
+			*LeftListPath, *RightListPath, *FilterName, *FrameRateStr, *QualityFlag, *OutputPath);
 	}
 	else
 	{
@@ -539,14 +557,16 @@ void UMoviePipelineAsymmetricStereoPass::LaunchFFmpegForShot(const FShotComposit
 		OutputPath = FPaths::Combine(Record.OutputDir,
 			FString::Printf(TEXT("stereo_%s_%s.%s"), *LayoutName, *Record.ShotName, *Fmt));
 
+		// concat demuxer does not accept -framerate; frame rate is set on the output with -r
 		Args = FString::Printf(
-			TEXT("-y -f concat -safe 0 -framerate %s -i \"%s\""
-			     " -f concat -safe 0 -framerate %s -i \"%s\""
+			TEXT("-y -f concat -safe 0 -i \"%s\""
+			     " -f concat -safe 0 -i \"%s\""
 			     " -filter_complex \"[0:v][1:v]%s=inputs=2\""
-			     " -c:v %s %s -pix_fmt %s %s \"%s\""),
-			*FrameRateStr, *LeftListPath,
-			*FrameRateStr, *RightListPath,
+			     " -r %s -c:v %s %s -pix_fmt %s %s \"%s\""),
+			*LeftListPath,
+			*RightListPath,
 			*FilterName,
+			*FrameRateStr,
 			*Codec, *QualityArgs, *PixFmt, *StereoArgs,
 			*OutputPath);
 	}
