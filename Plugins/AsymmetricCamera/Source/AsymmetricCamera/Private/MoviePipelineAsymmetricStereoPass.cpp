@@ -14,6 +14,8 @@
 #include "Misc/FileHelper.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/FileManager.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "Widgets/Notifications/SNotificationList.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogAsymmetricStereoPass, Log, All);
 
@@ -231,26 +233,49 @@ void UMoviePipelineAsymmetricStereoPass::BuildCompositeQueue()
 				if (FileName.Contains(TEXT("LeftEye")))
 				{
 					Record.LeftEyePaths.Add(FilePath);
-					if (Record.OutputDir.IsEmpty())
-					{
-						Record.OutputDir = FPaths::GetPath(FilePath);
-					}
 				}
 				else if (FileName.Contains(TEXT("RightEye")))
 				{
 					Record.RightEyePaths.Add(FilePath);
-					if (Record.OutputDir.IsEmpty())
-					{
-						Record.OutputDir = FPaths::GetPath(FilePath);
-					}
 				}
 			}
+		}
+
+		// OutputDir 取两眼目录的父目录（如 .../CamTest/11/），
+		// 避免 concat 列表文件和 ffmpeg 日志落在某一眼的子目录下导致路径找不到。
+		if (Record.LeftEyePaths.Num() > 0)
+		{
+			const FString LeftEyeDir = FPaths::GetPath(Record.LeftEyePaths[0]);
+			Record.OutputDir = FPaths::GetPath(LeftEyeDir); // 上一级
+		}
+		else if (Record.RightEyePaths.Num() > 0)
+		{
+			const FString RightEyeDir = FPaths::GetPath(Record.RightEyePaths[0]);
+			Record.OutputDir = FPaths::GetPath(RightEyeDir);
 		}
 
 		// Sort guarantees ascending frame order regardless of number format or start offset
 		// 排序保证帧升序，无论文件名格式或起始帧号
 		Record.LeftEyePaths.Sort();
 		Record.RightEyePaths.Sort();
+
+		// 从第一个左眼文件名中提取起始帧号（用于 ImageSequence 输出帧号对齐）。
+		// MRQ 文件名末尾固定为 .NNNNN.ext 格式（ZeroPadFrameNumbers 控制位数，默认 4 位）。
+		if (Record.LeftEyePaths.Num() > 0)
+		{
+			const FString FirstFile = FPaths::GetBaseFilename(Record.LeftEyePaths[0]);
+			// 找最后一段纯数字（帧号部分），例如 "LeftEye.0015" → "0015"
+			int32 DotIdx = INDEX_NONE;
+			FirstFile.FindLastChar(TEXT('.'), DotIdx);
+			if (DotIdx != INDEX_NONE)
+			{
+				const FString FramePart = FirstFile.Mid(DotIdx + 1);
+				if (FramePart.IsNumeric())
+				{
+					Record.StartFrameNumber = FCString::Atoi(*FramePart);
+				}
+			}
+		}
 
 		if (Record.LeftEyePaths.Num() > 0 && Record.RightEyePaths.Num() > 0)
 		{
@@ -368,6 +393,19 @@ bool UMoviePipelineAsymmetricStereoPass::HasFinishedExportingImpl()
 				IFileManager::Get().Delete(*TempFile, /*bRequireExists=*/false);
 			}
 		}
+	}
+
+	// 显示完成通知
+	if (CompositeQueue.Num() > 0)
+	{
+		FNotificationInfo Info(FText::FromString(
+			FString::Printf(TEXT("立体合成完成：%d 个 Shot 已处理"), CompositeQueue.Num())));
+		Info.ExpireDuration = 5.0f;
+		Info.bUseLargeFont = false;
+		Info.bFireAndForget = true;
+		FSlateNotificationManager::Get().AddNotification(Info);
+
+		UE_LOG(LogAsymmetricStereoPass, Log, TEXT("Stereo composite finished: %d shot(s) processed."), CompositeQueue.Num());
 	}
 
 	bExportFinished = true;
@@ -550,11 +588,13 @@ void UMoviePipelineAsymmetricStereoPass::LaunchFFmpegForShot(const FShotComposit
 		const bool bIsJpeg = ExtLower == TEXT(".jpg") || ExtLower == TEXT(".jpeg");
 		const FString QualityFlag = bIsJpeg ? TEXT("-q:v 1") : TEXT("");
 
-		// concat demuxer 不支持 -framerate，帧率用 -r 在输出端指定
+		// concat demuxer 不支持 -framerate，帧率用 -r 在输出端指定。
+		// -start_number 让输出帧序号与源文件帧号对齐（支持自定义起始帧）。
 		Args = FString::Printf(
 			TEXT("-y -f concat -safe 0 -i \"%s\" -f concat -safe 0 -i \"%s\""
-			     " -filter_complex \"[0:v][1:v]%s=inputs=2\" -r %s %s \"%s\""),
-			*LeftListPath, *RightListPath, *FilterName, *FrameRateStr, *QualityFlag, *OutputPath);
+			     " -filter_complex \"[0:v][1:v]%s=inputs=2\" -r %s %s -start_number %d \"%s\""),
+			*LeftListPath, *RightListPath, *FilterName, *FrameRateStr, *QualityFlag,
+			Record.StartFrameNumber, *OutputPath);
 	}
 	else
 	{
@@ -590,21 +630,37 @@ void UMoviePipelineAsymmetricStereoPass::LaunchFFmpegForShot(const FShotComposit
 		UE_LOG(LogAsymmetricStereoPass, Log, TEXT("Right concat list (%s):\n%s"), *RightListPath, *RightContent);
 	}
 
-	// FFmpeg stderr 始终重定向到日志文件，方便排查错误。合成完成后根据调试开关决定是否删除。
+	// FFmpeg stdout/stderr 重定向到日志文件，方便排查错误。合成完成后根据调试开关决定是否删除。
+	// 通过临时 bat 文件执行，彻底规避 cmd /c 引号嵌套解析问题（Args 内部含多处双引号路径）。
 	const FString FFmpegLogPath = FPaths::Combine(Record.OutputDir,
 		FString::Printf(TEXT("_ffmpeg_log_%s.txt"), *Record.ShotName));
 	TempConcatFiles.Add(FFmpegLogPath);
+	const FString BatPath = FPaths::Combine(Record.OutputDir,
+		FString::Printf(TEXT("_ffmpeg_run_%s.bat"), *Record.ShotName));
 
-	// 通过 cmd /c 将 stdout 和 stderr 都重定向到日志文件。
-	// FPlatformProcess::CreateProc 不支持管道捕获，必须用 shell 重定向。
-	const FString CmdExe = TEXT("cmd.exe");
-	const FString CmdArgs = FString::Printf(
-		TEXT("/c \"\"%s\" %s > \"%s\" 2>&1\""),
-		*FFmpegExe, *Args, *FFmpegLogPath);
+	// bat 文件中 % 需要转义为 %%，否则 cmd 会把 %0 当作批处理参数导致路径破坏。
+	// 例如 stereo_TB_%05d.jpeg 在 bat 中必须写成 stereo_TB_%%05d.jpeg。
+	FString ArgsEscaped = Args;
+	ArgsEscaped.ReplaceInline(TEXT("%"), TEXT("%%"));
+
+	const FString BatContent = FString::Printf(
+		TEXT("@echo off\r\n\"%s\" %s > \"%s\" 2>&1\r\n"),
+		*FFmpegExe, *ArgsEscaped, *FFmpegLogPath);
+
+	if (!FFileHelper::SaveStringToFile(BatContent, *BatPath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
+	{
+		UE_LOG(LogAsymmetricStereoPass, Error,
+			TEXT("Failed to write FFmpeg bat file: %s"), *BatPath);
+		return;
+	}
+	TempConcatFiles.Add(BatPath);
 
 	UE_LOG(LogAsymmetricStereoPass, Log,
 		TEXT("Launching FFmpeg for shot '%s':\n  %s %s"), *Record.ShotName, *FFmpegExe, *Args);
 	UE_LOG(LogAsymmetricStereoPass, Log, TEXT("FFmpeg output will be written to: %s"), *FFmpegLogPath);
+
+	const FString CmdExe = TEXT("cmd.exe");
+	const FString CmdArgs = FString::Printf(TEXT("/c \"%s\""), *BatPath);
 
 	ActiveFFmpegProcess = FPlatformProcess::CreateProc(
 		*CmdExe, *CmdArgs,
