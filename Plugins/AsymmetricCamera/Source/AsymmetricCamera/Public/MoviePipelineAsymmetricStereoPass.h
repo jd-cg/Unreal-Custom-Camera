@@ -22,6 +22,7 @@ struct FShotCompositeRecord
 	FString         OutputDir;      // 输出目录
 	FFrameRate      FrameRate;      // 序列帧率（精确分数形式）
 	FString         ShotName;       // Shot 名称（用于输出文件命名）
+	int32           StartFrameNumber = 0; // 起始帧号（用于 ImageSequence 输出对齐）
 };
 
 /**

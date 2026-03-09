@@ -252,6 +252,24 @@ void UMoviePipelineAsymmetricStereoPass::BuildCompositeQueue()
 		Record.LeftEyePaths.Sort();
 		Record.RightEyePaths.Sort();
 
+		// 从第一个左眼文件名中提取起始帧号（用于 ImageSequence 输出帧号对齐）。
+		// MRQ 文件名末尾固定为 .NNNNN.ext 格式（ZeroPadFrameNumbers 控制位数，默认 4 位）。
+		if (Record.LeftEyePaths.Num() > 0)
+		{
+			const FString FirstFile = FPaths::GetBaseFilename(Record.LeftEyePaths[0]);
+			// 找最后一段纯数字（帧号部分），例如 "LeftEye.0015" → "0015"
+			int32 DotIdx = INDEX_NONE;
+			FirstFile.FindLastChar(TEXT('.'), DotIdx);
+			if (DotIdx != INDEX_NONE)
+			{
+				const FString FramePart = FirstFile.Mid(DotIdx + 1);
+				if (FramePart.IsNumeric())
+				{
+					Record.StartFrameNumber = FCString::Atoi(*FramePart);
+				}
+			}
+		}
+
 		if (Record.LeftEyePaths.Num() > 0 && Record.RightEyePaths.Num() > 0)
 		{
 			UE_LOG(LogAsymmetricStereoPass, Log,
@@ -550,11 +568,13 @@ void UMoviePipelineAsymmetricStereoPass::LaunchFFmpegForShot(const FShotComposit
 		const bool bIsJpeg = ExtLower == TEXT(".jpg") || ExtLower == TEXT(".jpeg");
 		const FString QualityFlag = bIsJpeg ? TEXT("-q:v 1") : TEXT("");
 
-		// concat demuxer 不支持 -framerate，帧率用 -r 在输出端指定
+		// concat demuxer 不支持 -framerate，帧率用 -r 在输出端指定。
+		// -start_number 让输出帧序号与源文件帧号对齐（支持自定义起始帧）。
 		Args = FString::Printf(
 			TEXT("-y -f concat -safe 0 -i \"%s\" -f concat -safe 0 -i \"%s\""
-			     " -filter_complex \"[0:v][1:v]%s=inputs=2\" -r %s %s \"%s\""),
-			*LeftListPath, *RightListPath, *FilterName, *FrameRateStr, *QualityFlag, *OutputPath);
+			     " -filter_complex \"[0:v][1:v]%s=inputs=2\" -r %s %s -start_number %d \"%s\""),
+			*LeftListPath, *RightListPath, *FilterName, *FrameRateStr, *QualityFlag,
+			Record.StartFrameNumber, *OutputPath);
 	}
 	else
 	{
