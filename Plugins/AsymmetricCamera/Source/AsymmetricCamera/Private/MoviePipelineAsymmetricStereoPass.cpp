@@ -615,21 +615,31 @@ void UMoviePipelineAsymmetricStereoPass::LaunchFFmpegForShot(const FShotComposit
 		UE_LOG(LogAsymmetricStereoPass, Log, TEXT("Right concat list (%s):\n%s"), *RightListPath, *RightContent);
 	}
 
-	// FFmpeg stderr 始终重定向到日志文件，方便排查错误。合成完成后根据调试开关决定是否删除。
+	// FFmpeg stdout/stderr 重定向到日志文件，方便排查错误。合成完成后根据调试开关决定是否删除。
+	// 通过临时 bat 文件执行，彻底规避 cmd /c 引号嵌套解析问题（Args 内部含多处双引号路径）。
 	const FString FFmpegLogPath = FPaths::Combine(Record.OutputDir,
 		FString::Printf(TEXT("_ffmpeg_log_%s.txt"), *Record.ShotName));
 	TempConcatFiles.Add(FFmpegLogPath);
-
-	// 通过 cmd /c 将 stdout 和 stderr 都重定向到日志文件。
-	// FPlatformProcess::CreateProc 不支持管道捕获，必须用 shell 重定向。
-	const FString CmdExe = TEXT("cmd.exe");
-	const FString CmdArgs = FString::Printf(
-		TEXT("/c \"\"%s\" %s > \"%s\" 2>&1\""),
+	const FString BatPath = FPaths::Combine(Record.OutputDir,
+		FString::Printf(TEXT("_ffmpeg_run_%s.bat"), *Record.ShotName));
+	const FString BatContent = FString::Printf(
+		TEXT("@echo off\r\n\"%s\" %s > \"%s\" 2>&1\r\n"),
 		*FFmpegExe, *Args, *FFmpegLogPath);
+
+	if (!FFileHelper::SaveStringToFile(BatContent, *BatPath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
+	{
+		UE_LOG(LogAsymmetricStereoPass, Error,
+			TEXT("Failed to write FFmpeg bat file: %s"), *BatPath);
+		return;
+	}
+	TempConcatFiles.Add(BatPath);
 
 	UE_LOG(LogAsymmetricStereoPass, Log,
 		TEXT("Launching FFmpeg for shot '%s':\n  %s %s"), *Record.ShotName, *FFmpegExe, *Args);
 	UE_LOG(LogAsymmetricStereoPass, Log, TEXT("FFmpeg output will be written to: %s"), *FFmpegLogPath);
+
+	const FString CmdExe = TEXT("cmd.exe");
+	const FString CmdArgs = FString::Printf(TEXT("/c \"%s\""), *BatPath);
 
 	ActiveFFmpegProcess = FPlatformProcess::CreateProc(
 		*CmdExe, *CmdArgs,
