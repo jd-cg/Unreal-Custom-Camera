@@ -622,9 +622,15 @@ void UMoviePipelineAsymmetricStereoPass::LaunchFFmpegForShot(const FShotComposit
 	TempConcatFiles.Add(FFmpegLogPath);
 	const FString BatPath = FPaths::Combine(Record.OutputDir,
 		FString::Printf(TEXT("_ffmpeg_run_%s.bat"), *Record.ShotName));
+
+	// bat 文件中 % 需要转义为 %%，否则 cmd 会把 %0 当作批处理参数导致路径破坏。
+	// 例如 stereo_TB_%05d.jpeg 在 bat 中必须写成 stereo_TB_%%05d.jpeg。
+	FString ArgsEscaped = Args;
+	ArgsEscaped.ReplaceInline(TEXT("%"), TEXT("%%"));
+
 	const FString BatContent = FString::Printf(
 		TEXT("@echo off\r\n\"%s\" %s > \"%s\" 2>&1\r\n"),
-		*FFmpegExe, *Args, *FFmpegLogPath);
+		*FFmpegExe, *ArgsEscaped, *FFmpegLogPath);
 
 	if (!FFileHelper::SaveStringToFile(BatContent, *BatPath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
 	{
