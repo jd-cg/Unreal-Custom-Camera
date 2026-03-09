@@ -231,20 +231,25 @@ void UMoviePipelineAsymmetricStereoPass::BuildCompositeQueue()
 				if (FileName.Contains(TEXT("LeftEye")))
 				{
 					Record.LeftEyePaths.Add(FilePath);
-					if (Record.OutputDir.IsEmpty())
-					{
-						Record.OutputDir = FPaths::GetPath(FilePath);
-					}
 				}
 				else if (FileName.Contains(TEXT("RightEye")))
 				{
 					Record.RightEyePaths.Add(FilePath);
-					if (Record.OutputDir.IsEmpty())
-					{
-						Record.OutputDir = FPaths::GetPath(FilePath);
-					}
 				}
 			}
+		}
+
+		// OutputDir 取两眼目录的父目录（如 .../CamTest/11/），
+		// 避免 concat 列表文件和 ffmpeg 日志落在某一眼的子目录下导致路径找不到。
+		if (Record.LeftEyePaths.Num() > 0)
+		{
+			const FString LeftEyeDir = FPaths::GetPath(Record.LeftEyePaths[0]);
+			Record.OutputDir = FPaths::GetPath(LeftEyeDir); // 上一级
+		}
+		else if (Record.RightEyePaths.Num() > 0)
+		{
+			const FString RightEyeDir = FPaths::GetPath(Record.RightEyePaths[0]);
+			Record.OutputDir = FPaths::GetPath(RightEyeDir);
 		}
 
 		// Sort guarantees ascending frame order regardless of number format or start offset
