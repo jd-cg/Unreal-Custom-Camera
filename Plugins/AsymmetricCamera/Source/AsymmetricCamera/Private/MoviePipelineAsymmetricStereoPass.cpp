@@ -14,6 +14,8 @@
 #include "Misc/FileHelper.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/FileManager.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "Widgets/Notifications/SNotificationList.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogAsymmetricStereoPass, Log, All);
 
@@ -391,6 +393,19 @@ bool UMoviePipelineAsymmetricStereoPass::HasFinishedExportingImpl()
 				IFileManager::Get().Delete(*TempFile, /*bRequireExists=*/false);
 			}
 		}
+	}
+
+	// 显示完成通知
+	if (CompositeQueue.Num() > 0)
+	{
+		FNotificationInfo Info(FText::FromString(
+			FString::Printf(TEXT("立体合成完成：%d 个 Shot 已处理"), CompositeQueue.Num())));
+		Info.ExpireDuration = 5.0f;
+		Info.bUseLargeFont = false;
+		Info.bFireAndForget = true;
+		FSlateNotificationManager::Get().AddNotification(Info);
+
+		UE_LOG(LogAsymmetricStereoPass, Log, TEXT("Stereo composite finished: %d shot(s) processed."), CompositeQueue.Num());
 	}
 
 	bExportFinished = true;
