@@ -519,29 +519,29 @@ int32 UMoviePipelineAsymmetricStereoPass::GetEyeIndex(const int32 InCameraIndex)
 }
 
 FString UMoviePipelineAsymmetricStereoPass::WriteConcatList(
-	const TArray<FString>& FilePaths, const FString& ListFilePath) const
+    const TArray<FString>& FilePaths, const FString& ListFilePath) const
 {
 	// FFmpeg concat demuxer 格式：每行一个文件，路径用单引号括起来。
 	// 这种方式对帧号格式、起始帧和文件名间隔均无要求。
-	TArray<FString> Lines;
+    TArray<FString> Lines;
 	Lines.Reserve(FilePaths.Num());
-	for (const FString& Path : FilePaths)
-	{
-		FString Normalized = Path;
-		FPaths::NormalizeFilename(Normalized);
+    for (const FString& Path : FilePaths)
+    {
+        FString Normalized = Path;
+        FPaths::NormalizeFilename(Normalized);
 		// 转义路径中的单引号（concat list 格式要求）
-		Normalized.ReplaceInline(TEXT("'"), TEXT("'\\''"));
-		Lines.Add(FString::Printf(TEXT("file '%s'"), *Normalized));
-	}
+        Normalized.ReplaceInline(TEXT("'"), TEXT("'\\''"));
+        Lines.Add(FString::Printf(TEXT("file '%s'"), *Normalized));
+    }
 
-	const FString Content = FString::Join(Lines, TEXT("\n")) + TEXT("\n");
-	if (FFileHelper::SaveStringToFile(Content, *ListFilePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
-	{
-		return ListFilePath;
-	}
+    const FString Content = FString::Join(Lines, TEXT("\n")) + TEXT("\n");
+    if (FFileHelper::SaveStringToFile(Content, *ListFilePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
+    {
+        return ListFilePath;
+    }
 
-	UE_LOG(LogAsymmetricStereoPass, Error, TEXT("Failed to write concat list: %s"), *ListFilePath);
-	return FString();
+    UE_LOG(LogAsymmetricStereoPass, Error, TEXT("Failed to write concat list: %s"), *ListFilePath);
+    return FString();
 }
 
 void UMoviePipelineAsymmetricStereoPass::LaunchFFmpegForShot(const FShotCompositeRecord& Record)
@@ -590,10 +590,12 @@ void UMoviePipelineAsymmetricStereoPass::LaunchFFmpegForShot(const FShotComposit
 
 		// concat demuxer 不支持 -framerate，帧率用 -r 在输出端指定。
 		// -start_number 让输出帧序号与源文件帧号对齐（支持自定义起始帧）。
+		//hys 获取当前渲染帧数防止插帧
 		Args = FString::Printf(
-			TEXT("-y -f concat -safe 0 -i \"%s\" -f concat -safe 0 -i \"%s\""
-			     " -filter_complex \"[0:v][1:v]%s=inputs=2\" -r %s %s -start_number %d \"%s\""),
-			*LeftListPath, *RightListPath, *FilterName, *FrameRateStr, *QualityFlag,
+			TEXT("-y -r %s -f concat -safe 0 -i \"%s\" -r %s -f concat -safe 0 -i \"%s\""
+			     " -filter_complex \"[0:v][1:v]%s=inputs=2:shortest=1\" "
+				" -r %s %s -start_number %d \"%s\""),
+			*FrameRateStr, *LeftListPath, *FrameRateStr, *RightListPath, *FilterName, *FrameRateStr, *QualityFlag,
 			Record.StartFrameNumber, *OutputPath);
 	}
 	else
@@ -601,18 +603,21 @@ void UMoviePipelineAsymmetricStereoPass::LaunchFFmpegForShot(const FShotComposit
 		const FString Codec       = GetFFmpegCodecString(VideoCodec);
 		const FString Fmt         = GetOutputFormat(VideoCodec, OutputFormat);
 		const FString PixFmt      = GetFFmpegPixFmtForCodec(VideoCodec);
-		const FString QualityArgs = GetFFmpegQualityArgs(VideoCodec, CompositeQuality);
+    const FString QualityArgs = GetFFmpegQualityArgs(VideoCodec, CompositeQuality);
 		const FString StereoArgs  = GetStereoMetadataArgs(VideoCodec, StereoLayout);
 		OutputPath = FPaths::Combine(Record.OutputDir,
 			FString::Printf(TEXT("stereo_%s_%s.%s"), *LayoutName, *Record.ShotName, *Fmt));
 
 		// concat demuxer 不支持 -framerate，帧率用 -r 在输出端指定
-		Args = FString::Printf(
-			TEXT("-y -f concat -safe 0 -i \"%s\""
-			     " -f concat -safe 0 -i \"%s\""
-			     " -filter_complex \"[0:v][1:v]%s=inputs=2\""
+		//hys 获取当前渲染帧数防止插帧
+    Args = FString::Printf(
+			TEXT("-y -r %s -f concat -safe 0 -i \"%s\""
+			     " -r %s -f concat -safe 0 -i \"%s\""
+			     " -filter_complex \"[0:v][1:v]%s=inputs=2:shortest=1\" "
 			     " -r %s -c:v %s %s -pix_fmt %s %s \"%s\""),
+		*FrameRateStr,
 			*LeftListPath,
+		*FrameRateStr,
 			*RightListPath,
 			*FilterName,
 			*FrameRateStr,
